@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<h1>Reversing the McDonalds Mobile Application to get free food<span class="blogpost-date">06/03/2020</span></h1>
+							</header>
+							<p>
+							Just like any other student in a dorm, I often go out to eat because I'm too lazy to cook something and do the dishes after. The only thing that sucks about this is the price. So.. what if I could use my skills once more to take advantage of the McDonalds Mobile Application to reduce the costs of my food?
+							</p>
+							<h2>The McDonalds Application</h2>
+							<p>
+							McDonald's has a mobile application for both Android and ios phones. It turns out that there are multiple versions of the application, and it's based on your country. Since I am from Belgium, I will be looking into both the <a href="https://play.google.com/store/apps/details?id=com.mcdonalds.mobileapp&hl=nl"><u>Android</u></a> and <a href="https://itunes.apple.com/nl/app/mcdonalds/id1217507712?mt=8"><u>iOS</u></a> version of the application. The Android one is made with Java. I am not a javatar but it is way easier to reverse engineer Java compared to C/C++ (swift) based application.
+							</p>
+							<p>
+							The McDonalds' application has a coupon system, where you have to scan a QR code before you place an order in one of the restaurants. After completing the order, you get points added to your account balance. These points are called "Loyalty Points", and you get about 10 points for €1 spent at the McDonalds restaurant.
+							</p>
+							<p>
+							My goal here is to share my QR code with my friends, they think the loyalty points system is stupid so they don't use it at all. It sounds like free points to me if I can hand out my QR code to them, so I get the reward.
+							After using the app I noticed that the QR code changes every time you open it, and then after X time, the QR code changes again.
+							This makes it pretty hard to share the QR code with my friends when they need it. Oh, and it also seems like the app is blocking screen recording and screenshots, which makes it almost impossible to share QR codes. My idea was to find out how the QR code gets generated and then reproduce this process.
+							</p>
+							<h2>Reverse Engineering (Network)</h2>
+							<p>
+							Before we do anything at all, let me scan the QR code to see what data is held. After doing this it turns out to be a number with 4 to 6 digits, meaning it's a value from 1000 - 999999.
+							We now know that we are looking for this value. Its time to fire up <a href=""><u>mitmproxy</u></a> and configure my iPhone to use the Proxy IP of my laptop.
+							</p>
+							<p>
+							While my phone is starting the McDonald app, I can see my laptop screen getting filled with requests. Surprisingly there is nothing useful at a first glance. None of the HTTP/HTTPS URLs look like they came from the McDonalds app.
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_firstlook.png" alt="HTTPs requests" width="744" height="369"/>
+							</p>
+							<p>
+							Some of the URLs should come from the McDonald app since the only thing I did on my phone was open the app. After having a look at each URL, I figured out that the "dif.gmal.app" is the DNS used by the app. Let's highlight those URLs to have a better look at them.
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_secondlook.png" alt="marked requests" width="746" height="386"/>
+							</p>
+							<p>
+							Have a look at that, you can now guess that it registers my device with the URL containing <tt>device:register</tt> and that it's then getting some configuration and account info (consumers info). I took a look at the URLs, what they request, and what they get. There is not much useful information in there, but I'm still gonna show you whats in the <tt>v1/con/v3/consumers/me/tagvalues</tt> request &amp; response.
+							</p>
+							<p>
+							Starting with the GET, the response JSON body looks like this:
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_tagget.png" alt="tag GET request" width="358" height="566"/>
+							</p>
+							<p>
+							Having a laugh? Well, at least I am. It seems like some 'developer' forgot to remove the example parameters from a tutorial he copies &amp; pasted. Kind of funny, isn't it?<br>
+							Alright, let us take a look at the POST request:
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_tagpost.png" alt="tag POST request" width="430" height="188"/>
+							</p>
+							<p>
+							Those two values are sent to the server.. right after we received a list of values that also contained these two values. Do you see what's going on here? Maybe we could also add <tt>"Test_Group_B"</tt> and <tt>"Test_Group_B"</tt> to the JSON array and send it with a POST? Let's try it out! Who knows what kind of weird debugging stuff we will see in our app.
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_sendtagpost.png" alt="send tag POST request" width="423" height="228"/>
+							</p>
+							<p>
+							Uh, oh! Looks like we are unauthorized to do so? The message says that 'Digest verification' has failed. Seems like there is some kind of signature located in the header with the name <tt>x-dif-authorization</tt>. The signature for the successful call looks like this <tt>MEQCIGCUUK19BieShlyezunZ..</tt>, it might look a bit like Base64 but it isn't... Good job McDonald's, I will have to stop my curiosity here and continue with my main goal.
+							</p>
+							<p>
+							Alright, back on track, heading for the QR code!<br>
+							While I'm watching the mitmproxy screen, I use my phone to navigate to the section where the QR code is visible inside the app. After I opened the app, I see my screen filling up with requests, and they look promising!
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_qrcodeopen.png" alt="QR code request" width="666" height="113"/>
+							</p>
+							<p>
+							The following three highlighted URLs are what I'm digging for. The first two <tt>v1/off/v3/offers?..</tt> and <tt>v1/off/v3/loyaltycards?..</tt> contains all the information about the current offers. Offers can be coupons, so it's a good thing to have a URL to get all the information of them <i>(such as ID, expire date, price, etc..)</i>. 
+							</p>
+							<p>
+							The third URL is our jackpot! the URL is <tt>../v1/con/v3/consumers/me/verificationtoken..</tt> and the response looks like this:
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_mitm_bodyqr.png" alt="QR code request body JSON" width="347" height="91"/>
+							</p>
+							<p>
+							Now, remember that we couldn't send the tag POST stuff? that was only because we edited the JSON body content, resulting in having an invalid signature in our headers. For this URL we don't need to change anything at all to make it work, we can keep our current headers and request as many codes as we want!
+							</p>
+							<p>
+							The last thing we gotta do is put this all together in a nice C# application, host it somewhere on my website (<a href="https://mcdo.ferib.dev/"><u>www.mcdo.ferib.dev</u></a>) and share the website with my friends so I can get their loyalty points!
+							</p>
+							<h2>Reverse Engineering (Application)</h2>
+							<p>
+							At this point, I have everything I need to achieve my goal. But oh boy, my curiosity is out there, wondering what the Android application looks like. Since the Android application is way easier to reverse engineer compared to ios, I will take a quick look at it. We might be able to find out how the Signature in the headers is calculated, this means we would be capable of sending custom-crafted HTTP(s) request to the server.
+							</p>
+							<p>
+							But it turns out that some of the Java code is obfuscated. I used an online Java decompiling tool to convert the APK into code, after having a quick look I already notice most of the code looks like garbage to me. I'm not a javatar and won't spend time restoring the code. Some packages aren't affected by the obfuscation, I found a package called "mcdonalds". The package mainly contains view models, no actual programming logic to see here. Let's look at a few view models then.
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_dc_cardtype.png" alt="card model java code" width="270" height="98"/>
+							</p>
+							<p>
+							At the screenshot above we see that there are two card types defined, <tt>STAMP_CARRD</tt> and <tt>POINT_CARD</tt>, good to know that there are multiple versions of the card, but I don't see any use for that, those loyalty cards are based on what country you are in, the type won't change anytime soon.
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_dc_rootchecker.png" alt="java root detection code" width="368" height="245"/>
+							</p>
+							<p>
+							This 'rootchecker' grabbed my attention. It's known that the application won't function on a rooted phone. According to McDonald's its for 'safety' reasons that they don't want their application to run on rooted phones. For those who have a rooted phone and want to run the application, just patch the above function and you should be good to go.
+							</p>
+							<p>
+							I have a jailbroken iPhone XS, so I'm not even gonna bother patching stuff in an APK. Once again, Good job McDonald's, I'm gonna stop looking at the APK and just finish writing my C# application. At the moment I have everything I need to achieve my goal.
+							</p>
+							<h2>The Result</h2>
+							<p>
+							The result is my QR code (which is plain text ;_;) hosted on my website, the QR code will get refreshed every minute. That's it for now, I thought about adding Discords Oauth API to the webpage so I can keep track who got which code. It is possible to get the history of the points gained, but it's not possible to find out from which QR code it is. Disappointing, otherwise I'd be able to reward my friends somehow, or at least keep track of who sent how many points.
+							</p>
+							<p>
+							<iframe src="https://www.mcdo.ferib.dev" width="250" height="200">
+							  <p>Your browser does not support iframes, please visit <a href="https://mcdo.ferib.dev/"><u>www.mcdo.ferib.dev</u></a> to see the result.</p>
+							</iframe><br>
+							<i>The above iframe shows my current QR code, spend €5 at McDonald's using my code so i can have a free coffee!</i>
+							</p>
+							<p>
+							The project can be found <a href="https://github.com/ferib/McDonald_LoyaltyCodeGenerator"><u>here</u></a> on GitHub.
+							</p>
+							<br><br><br>
+							<h1 id="update">Update: 14/03/2020</h1>
+							<p>
+							What if I told you, the title isn't a clickbait and I was having free food the whole time?
+							</p>
+							<p>
+							While I made this project, I thought 'what if I just generated as many codes as possible?' and so I did. I deployed an AWS server and executed my code on there, here is how it looks
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_aws_fullpower.png" alt="AWS server executing code generator" width="799" height="431"/>
+							</p>
+							<p>
+							At first, I had no idea if it would work, so I left the tool running at night. The next day I woke up, logged into my McDonald account and saw 1000 points on my account, what a surprise!
+							</p>
+							<p>
+							The next thing I did was finding out how to buy a coupon, after fiddling with that I was able to automatically buy coupons without activating them, so I could stack them as much as I want. My app looks like this now:
+							</p>
+							<p>
+							<img src="/img/blog/mcdo_coupon_stack.png" alt="mcdonald application coupon stacking" width="300" height="650"/>
+							</p>
+							<p>
+							<i>As of 10/03/2020, McDonald has updated its server and it is no longer possible to do this many API requests, which means that this exploit is no longer possible.</i>
+							</p>
+							
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

@@ -1,0 +1,3 @@
+# Get off my lawn!
+User-agent: *
+Disallow:

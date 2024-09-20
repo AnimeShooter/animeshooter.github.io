@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<h1>Reversing an Online Webshop for Discounts<span class="blogpost-date">01/03/2020</span></h1>
+							<p>
+							Just like any other student, I don't have much money. <i>(Pretty ironic since my <a href="https://ferib.dev/blog/how-i-woke-up-with-$5000-in-bitcoin"><u>last post</u></a>, but it's true</i>). 
+							Not so long ago, Apple released the new Apple Watch 5, a smartwatch that is too expensive for me. 
+							So I was wondering if I could get this cheaper using my Reverse Engineering skills on an online webshop. 
+							And hell yeah was I right! The website we will be targeting is <a href="https://bol.com/"><u>Bol.com</u></a><i>. (the website mainly operates in Belgium and the Netherlands)</i>
+							</p>
+							</header>
+							<h2>How to get profit?</h2>
+							<p>
+							The website comes with a "send back" feature <i>(they call it "retourkansjes")</i>. This allows a customer to send their products back within a given amount of time.
+							A product can only be sent back if it meets a few requirements, this is done to prevent fraud.
+							</p>
+							<p>
+							The "send back" products are listed on the webshop, and they usually have a discount because they sometimes been slightly used. Therefore, when there is an Apple watch, we can be the first ones to snag it at a discounted price!
+							</p>
+							
+							<h2>Reversing the Webshop</h2>
+							<p>
+							It's time to pull apart the website and have a look at what's under the "hood".
+							For this, we will need to find out how the website works from the inside, which we can do this by firing up <a href="https://mitmproxy.org/"><u>mitmproxy</u></a> and having a look at its output.
+							Mitmproxy will output all HTTP &amp; HTTPS requests and responses we make.
+							</p>
+							<p>
+							Products are the first things we will be looking for on the webshop. For my first request, I searched for "Apple Watch 5" and selected the first item I got. Mitmproxy gave me the following response:
+							</p>
+							<p>
+							<img src="/img/blog/mitm_first_request.png" alt="mitmproxy GET request result" width="661" height="279" />
+							</p>
+							<p>
+							Have a close look at the URL <i>(NOTE: I have cut everything away after the question mark)</i><br>
+							<tt>https://www.bol.com/nl/p/apple-watch-series-5-44-mm-spacegrijs/9200000120046723/</tt>
+							<br>
+							The first part of the URL is the main domain, the second two parts are <tt>nl</tt> which indicate the language. The next one is <tt>p</tt> which is the first letter of <b>p</b>roduct.
+							Now let's have a look at the next part, it looks like it's the name of the product.
+							Next to the name we see something I was hoping for, some kind of number, guess what... it's most likely the ID of the product.
+							We can verify that this is indeed the ID of the project by searching for another product. After I have searched for a second product, I have got this URL now:<br>
+							<tt>https://www.bol.com/nl/p/apple-watch-series-5-44-mm-roze/9200000120047459/</tt>
+							<br>
+							You can probably guess by now which product I have selected. <i>(especially if you understand Dutch)</i>
+							This time I selected the "roze" <i>(dutch for pink)</i> apple watch. The pink apple watch is giving me a different number.
+							</p>
+							<p>
+							Okay, get ready for a tricky one, what product did I select this time?<br>
+							<tt>https://www.bol.com/nl/p/apple-watch-series-5-44-mm-roze/9200000120046723/</tt>
+							<br>
+							Have a better look at the number, because this URL gave me the same webpage as the first URL, the one where I selected the "Spacegray" apple watch. Surprised?<br>
+							It looks like the product name in the URL doesn't matter at all, as long as there <b>is</b> text in the middle, and as long as the ID is valid.
+							Sounds like some kind of SEO optimization to me, but anyway, it's good to know that the text doesn't matter at all, and you can probably imagine what a pain it would be to collect both the id AND the name of a product?
+							</p>
+							
+							<h2>Data scraping</h2>
+							<p>
+							We now know how URL's work for each product, so we can start scraping data from here. The hardest part about website data scraping is formatting the data. Here we are working with HTML, which is a pain in the ass. But let's leave that on its own for now and let me tell you what happened when I made my first HTTP GET request in C#. Programming this isn't a big deal, I searched for an HTTP helper library and found a NuGet called "RestSharp". Adding this to the project and I'm good to go.
+							</p>
+							<p>
+							I send my first request, and the response was something I didn't expect - there was no HTML code at all, instead, it was all JSON. While looking at my code I double-checked the URL and tried again. And again, the same JSON response popped up. Spoiler alert, I did not use any headers (except for the ones that RestSharp used by default), so the server knew I was not a "legitimate" visitor, and that's why it gave me JSON data instead of HTML code. Pretty awesome to work with!
+							</p>
+							<p>
+							<img src="/img/blog/vs_json_response.png" alt="Visual Studio JSON GET API response" width="869" height="480" />
+							</p>
+							
+							<h2>Automating data scanning</h2>
+							<p>
+							We are getting close to what we want, and pretty fast, all thanks to the JSON data response we get when we don't use headers. For handling the JSON data we need to deserialize the JSON string into a C# object. This means that we have to make all classes in C# that are used inside the JSON response. Please take a look at the screenshot above with the JSON response, and notice how many different types there are. Now, what if I told you that there is a tool that we can use to do this? Check this one out: <a href="http://json2csharp.com/"><u>http://json2csharp.com/</u></a>
+							</p>
+							<p>
+							<img src="/img/blog/json_class.png" alt="JSON deserialize class generator" width="574" height="658" />
+							</p>
+							
+							<p>
+							Just look how easy that is, just click the "Generate" button after pasting the JSON response in the text field, and we get our C# class code almost instantly.
+							</p>
+							
+							<h2>Filtering the data</h2>
+							<p>
+							At this point, we have an object in C# that contains all the information that we can see on the website. Let's take an even deeper look in the object, to see where the products are located, and to see if we can find a price tag or something similar.<br><br>
+							</p>
+							<p>
+							<img src="/img/blog/obj_return.png" alt="Visual Studio deserialized object property's" width="659" height="567"/>
+							</p>
+							<p>
+							And look at that, in the "content", there is a list named "offers" which contains all the products we see on the webpage. Each offer has additional data, we can even see that our ID in the URL is shown under "productId". We can now confirm that the number we used in the URL is indeed the ID of that product.
+							</p>
+							
+							<h2>Automated purchasing</h2>
+							<p>
+							These last series of Apple Watches are rare to see in the "send back" area, and that's exactly why I wrote this bot. I want to be the very first person that sees the offer, so I can decide to buy it or not. At the moment I use Discord's Webhook API so the bot sends a notification whenever a new Apple watch is available in the "send back" area. But we can take this to the next level and automatically purchase the product by making use of the "addToBasketUrl" property.
+							</p>
+							<p>
+							I will not go in detail on how to place automated orders, not now... however maybe I will write a blogpost about automated dropshipping, who knows ;)
+							</p><br>
+							<h1>The Result!</h1>
+							<p>
+							In the image below you see the output of the C# console application.
+							</p>
+							<p>
+							<img src="/img/blog/result.png" alt="Console application output result" width="693" height="249" /><br><br>
+							</p>
+							<p>
+							The item named <i>"Apple Watch Series 5 Spacegrey 44mm"</i> looks like this on the website:
+							</p>
+							<p>
+							<img src="/img/blog/shop2.png" alt="Bol dot com spacegray smartwatch 44mm retourkansjes offers" width="779" height="407" /><br><br>
+							</p>
+							<p>
+							And the second item we found named <i>"Apple Watch Series 5 Spacegrey 40mm"</i> looks like this on the website:
+							</p>
+							<p>
+							<img src="/img/blog/shop.png" alt="Bol dot com spacegray smartwatch 40mm retourkansjes offers" width="771" height="426" /><br><br>
+							</p>
+							<p>
+							Have a closer look at both the pricing in the console application and the pricing on the website. They should match, and so does the description near it. This shows that our tool is working perfectly. I let my tool check the website every five minutes, the tool is placed on a VPS and will notify me whenever a new Apple watch is posted on the webshop. From now it's just waiting until a new hot deal shows up!
+							</p>
+							<p>
+							You can find all the code at GitHub: <a href="https://github.com/ferib/BolDeals"><u>https://github.com/ferib/BolDeals</u></a><br><br>
+							</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

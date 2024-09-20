@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<!--<h1>Lua Devirtualization Part 3: Devirtualizing Luraph <span class="blogpost-date">01/06/2021</span></h1>-->
+							<h1>Lua Devirtualization Part 3: Devirtualizing Luraph <span class="blogpost-date">24/02/2022</span></h1>
+							<p>
+								For this article, I will combine all the tools I have created and perform a deep analysis of how well the most common virtualization is implemented. On top of that, I will also try to find out how we can make virtualization better and at which (performance) cost.
+							</p>
+							</header>
+							<p>
+							This article is part 3 of 4, you can find all other articles below:
+								<ul>
+									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-1-introduction">Part 1: Introduction</a></u></li>
+									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua">Part 2: Decompiling Lua</a></u></li>
+									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u></li>
+									<!-- NOT TODAY
+									<li><u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u></li>
+									-->
+								</ul>
+								<br/>
+							</p>
+			
+							<p>
+							<p>
+							<i>Please make sure you have read the previous two parts before you continue.</i>
+							</p>
+							<p>
+							<h2>Luraph</h2>
+							<p>
+							For those who still don't know yet, Luraph is an obfuscator that is done by virtualizing the original Lua script with the main goal to hide what is going on. Luraph seems to achieve this by compiling the Lua script, separating the instructions from each function, lifting/'renaming' the Lua instructions to Luraph instruction, and then packing the heap data (constants, upvalues, etc).
+							</p>
+							<p>
+							Today is all about undoing that, not only will we achieve this through manual analyses but we will also use the tools from the <u><a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua">previous article</a></u> to automate the devirtualization process.
+							</p>
+							<h2>Table of Content</h2>
+							<p>
+							To keep everything organized and easy to find I will split the article into the following sections below:
+							<ul>
+								<li><u><a href="#Internals">The internals of Luraph</a></u></li>
+								<li><u><a href="#Unpacking">Unpacking Luraph</a></u></li>
+								<!-- <li><u><a href="#Lifting">Lifting Luraph to Lua</a></u></li> -->
+								<li><u><a href="#Lifting">Lifting like a Forklift</a></u></li>
+								<li><u><a href="#Encoding">Encoding to compiled Lua</a></u></li>
+								<li><u><a href="#Decompiling">Decomping Lua</a></u></li>
+								<li><u><a href="#Conclusion">Conclusion</a></u></li>
+							</ul>
+							</p>
+							<h2 id="Internals">The internals of Luraph</h2>
+							<p>
+							Before we can devirtualize Luraph we must understand how Luraph performs virtualization, therefore I will start by showing you the pseudo-Lua code of a Luraphed script.
+							</p>
+							<p>
+							<pre class="code_box"><span class="c_green">-- use locals to hide func refferences</span>
+			<span class="c_yellow">local</span> funpack <span class="c_yellow">=</span> unpack
+			<span class="c_yellow">local</span> fpcal <span class="c_yellow">=</span> pcall
+			<span class="c_yellow">local</span> fsetfenv <span class="c_yellow">=</span> setfenv
+			<span class="c_yellow">local</span> fsetmetatable <span class="c_yellow">=</span> setmetatable
+			<span class="c_yellow">local</span> ftype <span class="c_yellow">=</span> type
+			<span class="c_yellow">local</span> fgetfenv <span class="c_yellow">=</span> getfenv
+			<span class="c_yellow">local</span> ftostring <span class="c_yellow">=</span> tostring
+			<span class="c_yellow">local</span> ferror <span class="c_yellow">=</span> error
+			<span class="c_yellow">local</span> fstringsub <span class="c_yellow">=</span> string.sub
+			<span class="c_yellow">local</span> fstringbyte <span class="c_yellow">=</span> string.byte
+			<span class="c_yellow">local</span> fstringchar <span class="c_yellow">=</span> string.char
+			<span class="c_yellow">local</span> fstringrep <span class="c_yellow">=</span> string.rep
+			<span class="c_yellow">local</span> fstringgsub <span class="c_yellow">=</span> string.gsub
+			<span class="c_yellow">local</span> fstringmatch <span class="c_yellow">=</span> string.match
+			<span class="c_yellow">local</span> ftableinsert <span class="c_yellow">=</span> table.insert
+			
+			<span class="c_green">-- more locals used to hide more refferences
+			-- &lt;...>
+			
+			-- Luraph VM</span>
+			<span class="c_yellow">local function</span> VMRun<span class="c_yellow">(</span>LPH_String<span class="c_yellow">,</span> arg2<span class="c_yellow">)</span>
+			<span class="c_green">-- NOTE: pre-unpacking
+			-- Do: LPH string to byte table (with duplicating byte X)
+			
+			-- NOTE: Helpers</span>
+			<span class="c_yellow">local function</span> LPH_GetBytes<span class="c_yellow">()</span>
+			<span class="c_yellow">local function</span> LPH_GetDWORD<span class="c_yellow">()</span>
+			<span class="c_yellow">local function</span> LPH_GetFlagBit<span class="c_yellow">(</span>flag<span class="c_yellow">,</span> start<span class="c_yellow">,</span> bitEnd<span class="c_yellow">)</span>
+			<span class="c_yellow">local function</span> LPH_unknown0<span class="c_yellow">()</span><span class="c_green"> -- decrpyt QWORD?</span>
+			<span class="c_yellow">local function</span> unk_bitxor<span class="c_yellow">()</span><span class="c_green"> -- bitwise xor function? (helper for helpers)</span>
+			<span class="c_yellow">local function</span> LPH_GetEncryptedDWORD<span class="c_yellow">()</span><span class="c_green"> -- guessed</span>
+			<span class="c_yellow">local function</span> LPH_GetString<span class="c_yellow">(</span>arg1<span class="c_yellow">)</span><span class="c_green"> -- unk arg</span>
+			
+			<span class="c_green">-- NOTE: basic unpacking
+			-- Do: table_loop1
+			
+			-- NOTE: the real unpacking function</span>
+			<span class="c_yellow">local function</span> LPH_UnpackData<span class="c_yellow">()</span>
+			
+			<span class="c_green">-- NOTE: Interpreter</span>
+			<span class="c_yellow">local function</span> LuraphInterpreter<span class="c_yellow">(</span>data<span class="c_yellow">,</span> env<span class="c_yellow">,</span> arg3<span class="c_yellow">)</span>
+			<span class="c_green">-- Do: setup initial data</span>
+			<span class="c_yellow">local function</span> Main<span class="c_yellow">(...)</span>
+				<span class="c_green">-- Do: setup more initial data</span>
+				<span class="c_yellow">local function</span> unk<span class="c_yellow">(...)</span> <span class="c_green">-- handle VARARGS?</span>
+				<span class="c_yellow">local function</span> InterpretFunc<span class="c_yellow">()</span>
+					<span class="c_yellow">while true do</span>
+						<span class="c_green">-- Do: interpret Luraph bytecode</span>
+					<span class="c_yellow">end</span>
+				<span class="c_yellow">end</span>
+				<span class="c_green">-- Do: error handling</span>
+			<span class="c_yellow">end</span>
+			setfenv<span class="c_yellow">(</span>Main<span class="c_yellow">,</span> env<span class="c_yellow">)</span>
+			<span class="c_yellow">return</span> Main
+			<span class="c_yellow">end</span>
+			
+			<span class="c_green">-- NOTE: here is where it all goes into action</span>
+			<span class="c_yellow">local</span> unpackedData <span class="c_yellow">=</span> LPH_UnpackData<span class="c_yellow">()</span> <span class="c_green">-- NOTE: Just breakpoint this and dump the 'unpackedData' table</span>
+			<span class="c_yellow">return</span> LuraphInterpreter<span class="c_yellow">(</span>unpackedData<span class="c_yellow">,</span> env<span class="c_yellow">)()</span>
+			<span class="c_yellow">end</span>
+			VMRun<span class="c_yellow">(</span><span class="c_pink">"LPH!42069<span class="c_green">&lt;...></span>"</span><span class="c_yellow">,</span> getfenv<span class="c_yellow">())</span> <span class="c_green">-- invoke Luraph VM</span>
+							</pre>
+							</p>
+							<p>
+							Have a good look at that, you should be able to recognize this if you read the first part, but just to be sure I will sum up the things you should know:
+							</p>
+							<h3>Luraph Variables</h3>
+							<p>
+							Below are some Lua variables that I will mention a lot since they are a key component of the Luraph VM.
+							<ul>
+								<li><code>LPH_String</code>: Luraph string containing  VM data (prefixed with <code>LPH!</code>)</li>
+								<li><code>LPH_Table</code>: <code>LPH_String</code> converted to a table (without the prefix)</li>
+								<li><code>LPH_Index</code>: Index for the LPH data unpacking (using while unpacking)</li>
+								<li><code>VIP</code>: Virtual instruction pointer (used while interpreting)</li>
+							</ul>
+							</p>
+							<h3>Luraph Main Functions</h3>
+							<ul>
+								<li><code>VMRun</code>: Initialise and starts the Luraph VM</li>
+								<li><code>LPH_UnpackData</code>: Complete unpacking of <code>LPH_Table</code></li>
+							</ul>
+							<h3>Luraph Helpers</h3>
+							<p>
+							Luraph utilizes a lot of helper functions that are used for the unpacking of the LPH contents, some of those helpers do more than just unpacking it and may also perform decryption techniques to reveal the actual content from the LPH data.
+							<ul>
+								<li><code>LPH_GetBytes</code>: Gets 1 byte from the LPH table</li>
+								<li><code>LPH_GetDWORD</code>: Gets 4 byte DWORD from the LPH table</li>
+								<li><code>LPH_GetFlagBit</code>: Does bitwise stuff</li>
+								<li><code>LPH_unknown0</code>: Unknown</li>
+								<li><code>unk_bitxor</code>: bitxor look-a-like</li>
+								<li><code>LPH_GetEncryptedDWORD</code>: Gets 1 byte and XOR's to DWORD</li>
+								<li><code>LPH_GetString</code>: Gets 1 byte for string length and then continue to take the string</li>
+							</ul>
+							</p>
+							<p>
+							Those helpers are used in the unpacking stage, you may notice that I didn't bother too much reversing them as you will see why later on.
+							</p>
+							<h2 id="Unpacking">Unpacking Luraph</h2>
+							<p>
+							Unpacking is done inside the <code>VMRun</code> function by taking the <code>LPH_String</code> string, removing the <code>"LPH!"</code> prefix and then convert pairs of 2 chars to a hexadecimal value.
+							One little thing you should note is that there is a 'repeater' byte, this repeater looks something like <code>3X</code> where <code>X</code> is the repeater byte and <code>3</code> equals the number of times the next 2 chars should repeat themselves.
+							</p>
+							<p>
+							After the <code>LPH_Table</code> is generated we see a bunch of helper functions that get defined, after those helper functions is a small loop and two more function definitions.
+							Those next two functions are <code>LPH_UnpackData</code> and <code>LuraphInterpreter</code> accordingly, which get invoked at the end of the <code>VMRun</code> function.
+							</p>
+							<p>
+							The most important thing of the unpacking process is that we can just breakpoint the last line of the <code>VMRun</code> function, right before it calls the <code>LuraphInterpreter</code> function.
+							And thats exactly what I will be doing for now, I did in fact look into the whole <code>LPH_UnpackData</code> function in the hope to reverse it and be able to unpack the <code>LPH_String</code> myself.
+							But the actual goal of this article is to just devirtualize Luraph and automate the process, which shouldn't be a problem since we can just implement a Lua VM into our project, load in the Luraph script, and pause the Lua VM execution at the exact point we want.
+							We will do this by placing a breakpoint at the <code>LuraphInterpreter</code> call and then dump the contents of <code>unpackedData</code>, which should do the trick.
+							</p>
+							<h3>Dumping Unpacked Data</h3>
+							<p>
+							Below is the output of the <code>unpackedData</code> after sucesfully dumping the contents:
+							</p>
+							<p>
+							<pre class="code_box"><span class="c_yellow">{</span>1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, <span class="c_green">&lt;...></span> <span class="c_yellow">}</span>
+			<span class="c_yellow">{</span>
+			4<span class="c_yellow">,</span>
+			0<span class="c_yellow">,</span> 
+			<span class="c_yellow">{</span>2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> <span class="c_green">&lt;...></span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_yellow">{</span>
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 4<span class="c_yellow">,</span> 5<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 9999999<span class="c_yellow">,</span> 0<span class="c_yellow">,</span> 0<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 0<span class="c_yellow">, [</span>115435<span class="c_yellow"><span class="c_yellow">]</span></span> = 0<span class="c_yellow">}</span><span class="c_yellow">,</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 15<span class="c_yellow">,</span> 6<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_pink">"pairs"</span><span class="c_yellow">,</span> 1<span class="c_yellow">,</span> 1<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 0<span class="c_yellow">,</span> <span class="c_yellow">[</span>115435<span class="c_yellow"><span class="c_yellow">]</span></span> = 1<span class="c_yellow">}</span><span class="c_yellow">,</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 15<span class="c_yellow">,</span> 7<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_pink">"TaxiNodeCoords"</span><span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 0<span class="c_yellow">,</span> <span class="c_yellow">[</span>115435<span class="c_yellow"><span class="c_yellow">]</span></span> = 2<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 27<span class="c_yellow">,</span> 6<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 2050<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 4<span class="c_yellow">,</span> <span class="c_yellow">[</span>115435<span class="c_yellow"><span class="c_yellow">]</span></span> = 2050<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_green">&lt;...></span>
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> true<span class="c_yellow">,</span> 2<span class="c_yellow">,</span> 4<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 271<span class="c_yellow">,</span> 4879<span class="c_yellow">,</span> <span class="c_pink">"Name"</span><span class="c_yellow">,</span> 9<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 4879<span class="c_yellow">},</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 7<span class="c_yellow">,</span> 152<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 158<span class="c_yellow">,</span> 23710<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 46<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 23710<span class="c_yellow">},</span>
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 7<span class="c_yellow">,</span> 134<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 130<span class="c_yellow">,</span> 91778<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 179<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 91778<span class="c_yellow">},</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 10<span class="c_yellow">,</span> 0<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 465<span class="c_yellow">,</span> 131025<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 255<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 131025<span class="c_yellow">},</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 18<span class="c_yellow">,</span> 193<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 50<span class="c_yellow">,</span> 97842<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 191<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 97842<span class="c_yellow">},</span> 
+			<span class="c_yellow">{</span><span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 18<span class="c_yellow">,</span> 189<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 50<span class="c_yellow">,</span> 97330<span class="c_yellow">,</span> <span class="c_yellow">nil</span><span class="c_yellow">,</span> 190<span class="c_yellow">, [</span>115435<span class="c_yellow">]</span> = 97330<span class="c_yellow">}</span>
+			<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_yellow">{</span><span class="c_yellow">}</span><span class="c_yellow">,</span>
+			18
+			<span class="c_yellow">{</span><span class="c_pink">"pairs"</span><span class="c_yellow">,</span> <span class="c_pink">"TaxiNodeCoords"</span><span class="c_yellow">,</span> <span class="c_green">&lt;...></span> <span class="c_pink">"Y"</span><span class="c_yellow">,</span> <span class="c_pink">"Z"</span><span class="c_yellow">,</span> <span class="c_pink">"Name"</span><span class="c_yellow">, [</span>0<span class="c_yellow"><span class="c_yellow">]</span></span> = 9999999<span class="c_yellow">}</span>
+			<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_yellow">{</span>
+			 <span class="c_green">&lt;...></span>
+			<span class="c_yellow">}</span><span class="c_yellow">,</span>
+			<span class="c_yellow">{</span>
+			 <span class="c_green">&lt;...></span>
+			<span class="c_yellow">}</span>
+			<span class="c_yellow">}</span></pre>
+							</p>
+							<p>
+							And there we go, we managed to dump all the runtime data that Luraph is using to execute Lua, but... what does this data mean?
+							Lets jump back to the pseudo code and have a deeper look at the <code>LuraphInterpreter</code> pseudo code below:
+							</p>
+							<p>
+							<pre class="code_box">local function LuraphInterpreter(data, env, arg3)
+			-- Do: setup initial data
+			local function Main(...)
+			-- Do: setup more initial data
+			local VIP = 1
+			local vm_unk1, vm_unk2 = 21, 12
+			local vm_instructions = data[4]
+			local var_2 = 2 -- used as index
+			local vm_constants = data[5]
+			local iliI11i1IilI111ii11 = data[1]
+			local lII1i1IiIilIil1III1 = data[6]
+			local var_3 = 3 -- used as index
+			local l111llIi1IIlIl1lIi1 = data[3]
+			local var_7 = 7 -- used as index
+			
+			local function unk(...) -- handle VARARGS?
+			local function InterpretFunc()
+				while true do
+					local instr = vm_instructions[VIP]
+					local OpCode = instr[3]
+					VIP = VIP + 1
+					
+					-- Do: interpret Luraph OpCode
+					 if opcode &lt; 16 then
+							if opcode &lt; 8 then
+								if opcode &lt; 4 then
+									&lt;..>
+			
+				end
+			end
+			-- Do: error handling
+			end
+			setfenv(Main, env)
+			return Main
+			end</pre>
+							</p>
+							<p>
+							Please note that the variable <code>unpackedData</code> is renamed to <code>data</code> in the interpreter function. 
+							This function is responsible for setting up a bunch of things, pay close attention to the table indexing used on our <code>data</code> variable.
+							We can see that, in the next function, <code>InterpretFunc</code> which, is the actual Luraph interpreter that contains all the VM handlers.
+							Here we should see a bunch of IF statements that we discussed in the first article, the IF statements are used to check which handler should execute the given instruction, meaning that the IF checks are performed on the Luraph OpCode.
+							</p>
+							<p>
+							Now that we know the <code>OpCode</code> variable we just have to look where it gets defined, and in our case its obtained from <code>instr[3]</code>, the <code>instr</code> variable is obtained from <code>vm_instructions[VIP]</code> and finally, the <code>vm_instructions</code> variable is obtained from <code>data[4]</code>.
+							So with that being said, lets have another loop at the <code>data</code> we dumped.
+							</p>
+							<p>
+							<pre class="code_box"><span class="c_yellow">{
+			<span class="c_purple">4</span>,   <span class="c_green">-- data[1]</span>
+			<span class="c_purple">0</span>,   <span class="c_green">-- data[2]</span>
+			{<span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, <span class="c_green">&lt;..></span> <span class="c_purple">2</span>, <span class="c_purple">2</span>},   <span class="c_green">-- data[3]</span>
+			{    <span class="c_green">-- vm_instructions = data[4]</span>
+			{nil, nil, <span class="c_purple">4</span>, <span class="c_purple">5</span>, nil, <span class="c_purple">9999999</span>, <span class="c_purple">0</span>, <span class="c_purple">0</span>, nil, <span class="c_purple">0</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">0</span>}, 
+			<span class="c_green">&lt;..></span>
+			},   <span class="c_green">-- data[5]</span>
+			{},  <span class="c_green">-- data[6]</span>
+			<span class="c_purple">18</span>   <span class="c_green">-- data[7]</span>
+			{<span class="c_pink">"pairs"</span>, <span class="c_pink">"TaxiNodeCoords"</span>, <span class="c_green">&lt;...></span> <span class="c_pink">"Y"</span>, <span class="c_pink">"Z"</span>, <span class="c_pink">"Name"</span><span class="c_yellow">, [</span><span class="c_purple">0</span><span class="c_yellow">] =</span> <span class="c_purple">9999999</span>}  <span class="c_green">-- data[8]</span>
+			},
+			}</span></pre>
+							</p>
+							<p>
+							And look at that, I have added a comment to each table so its easy to figure out whats going on.
+							Now that we know which data represents the <code>vm_instructions</code>, we can take a deeper look at that table.
+							Luraph obtains the variable <code>instr</code> from <code>vm_instructions[VIP]</code>, meaning that this table contains the Luraph instructions.
+							Finally, lets have a look at a few <code>instr</code> variables, keep in mind that index 3 holds the Luraph OpCode.
+							</p>
+							<p>
+							<pre class="code_box"><span class="c_green">&lt;...></span>
+			<span class="c_yellow">{nil, nil, <span class="c_purple">4</span>, <span class="c_purple">5</span>, nil, <span class="c_purple">9999999</span>, <span class="c_purple">0</span>, <span class="c_purple">0</span>, nil, <span class="c_purple">0</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">0</span>}, 
+			{nil, nil, <span class="c_purple">15</span>, <span class="c_purple">6</span>, nil, <span class="c_pink">"pairs"</span>, <span class="c_purple">1</span>, <span class="c_purple">1</span>, nil, <span class="c_purple">0</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">1</span>}, 
+			{nil, nil, <span class="c_purple">15</span>, <span class="c_purple">7</span>, nil, <span class="c_pink">"TaxiNodeCoords"</span>, <span class="c_purple">2</span>, <span class="c_purple">2</span>, nil, <span class="c_purple">0</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">2</span>},
+			{nil, nil, <span class="c_purple">27</span>, <span class="c_purple">6</span>, nil, nil, <span class="c_purple">2</span>, <span class="c_purple">2050</span>, nil, <span class="c_purple">4</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">2050</span>},
+			{nil, nil, <span class="c_purple">10</span>, <span class="c_purple">0</span>, nil, nil, <span class="c_purple">43</span>, <span class="c_purple">131115</span>, nil, <span class="c_purple">256</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">131115</span>}, 
+			{nil, nil, <span class="c_purple">15</span>, <span class="c_purple">11</span>, nil, <span class="c_pink">"UnlAPI"</span>, <span class="c_purple">3</span>, <span class="c_purple">3</span>, nil, <span class="c_purple">0</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">3</span>}, 
+			{true, nil, <span class="c_purple">30</span>, <span class="c_purple">11</span>, <span class="c_pink">"GetMapId"</span>, nil, <span class="c_purple">11</span>, <span class="c_purple">133131</span>, nil, <span class="c_purple">260</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">133131</span>},
+			{nil, nil, <span class="c_purple">27</span>, <span class="c_purple">11</span>, nil, nil, <span class="c_purple">1</span>, <span class="c_purple">1025</span>, nil, <span class="c_purple">2</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">1025</span>},
+			{true, nil, <span class="c_purple">30</span>, <span class="c_purple">12</span>, <span class="c_pink">"MapId"</span>, nil, <span class="c_purple">10</span>, <span class="c_purple">133642</span>, nil, <span class="c_purple">261</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">133642</span>}, 
+			{nil, nil, <span class="c_purple">0</span>, <span class="c_purple">0</span>, nil, nil, <span class="c_purple">11</span>, <span class="c_purple">6155</span>, nil, <span class="c_purple">12</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">6155</span>},
+			{nil, nil, <span class="c_purple">10</span>, <span class="c_purple">0</span>, nil, nil, <span class="c_purple">37</span>, <span class="c_purple">131109</span>, nil, <span class="c_purple">256</span>, [<span class="c_purple">115435</span>] = <span class="c_purple">131109</span>},</span>
+			<span class="c_green">&lt;...></span>
+							</pre>
+							</p>
+							<p>
+							We now have a somewhat decent understanding of how the Luraph VM is handling all of the Lua data.
+							To me, it looks like every function has 3 numeric constants, probably used to define the number of arguments, return values, and upvalues.
+							Secondly, there is an empty table in each <code>data</code> entry which may be used for dynamic upvalues and lastly there is the Lua <code>vm_instructions</code> table which seems to be initialized with the OpCode, Registers and even constants.
+							<p>
+							<p>
+							With that information in mind, we can start to lift our Luraph opcodes to Lua opcodes and continue to figure out what other things the <code>data</code> variable is used for.
+							</p>
+							<h2 id="Lifting">Lifting like a Forklift</h2>
+							<p>
+							Before we start automated lifting like a forklift, we must understand what the <code>InterpretFunc</code> function is doing.
+							So far we already have a pretty good understanding of what is going on, and our goal is to simply identify every Luraph VM handler and then map it against a Lua instruction.
+							</p>
+							<p>
+							To do so, I will make use of LuaToolkit, especially the <code>LuaToolkit.Decompiler.LuaScriptBlock</code>, this feature allows me to split the whole <code>InterpretFunc</code> into blocks that I can use to easily identify every Luraph handler and the conditions used to reach them.
+							</p>
+							<h3>Example</h3>
+							<p>
+							To get a better understanding of how we can lift things I will start by showing you the <code>EQ</code> Lua instruction interpreted by this <a href="https://github.com/JustAPerson/lbi/blob/master/src/lbi.lua#L412"><u>lua bytecode interpreter</a></u>.
+							</p>
+							<p>
+								<img src="../../img/blog/luao_eq_normal.png" width="525" height="263" />
+							</p>
+							<p>
+							Followed by the Luraph interpretation of the <code>EQ</code> Instruction
+							</p>
+							<p>
+								<img src="../../img/blog/luao_eq_luraph.png" width="817" height="324"/>
+							</p>
+							<p>
+							Here we can clearly see that the functionality of these pieces of code are almost equal to each other, but how can we be sure it does exactly what the <code>EQ</code> opcode is supposed to do?
+							The thing that has to be exactly the same is often the usage of the registers. For <code>EQ</code> we simply have to verify if the Lua block is doing <code>if ((RK(B) == RK(C)) ~= A) then pc++</code>.
+							Which can easily be done because we have already figured out which variable/table/index represents which register.
+							</p>
+							<h3>Forklift</h3>
+							<p>
+							Once we have created our definitions to identify all 38 Lua handlers we can start performing automated scanning on the Luraph interpreter. For now, I only have identified a handful of handlers because I didnt feel like spending too much time on it.
+							<del><u><a href="https://github.com/ferib/De-Luraph/blob/blogpost/Lifter/LuaIdentifier.cs#L23">My handler definitions</a></u> are listed on GitHub so feel free to play around with them.</del> Below is a screenshot of the result from my auto handler detection tool.
+							</p>
+							<p>
+								<img src="../../img/blog/luao_lifted_result.png" width="363" height="495" />
+							</p>
+							<p>
+							<i>NOTE: Keep in mind that not all handlers are defined, hence why you see duplicated <code>MOVE</code> opcodes.</i>
+							</p>
+							<p>
+							<i>NOTE2: Not all handlers have been located correctly (if/else bugged out).</i>
+							</p>
+							<p>
+							Identifying the handlers is only half the work, our next challenge is to find out which Luraph OpCode is assigned to which block. Remember the weird-looking IF statements?
+							It's about time to grab all the IF statements of each block, check if we are located in the true/false body, and continue until we have traversed back to the very first IF-statement of the Luraph interpreter.
+							</p>
+							<p>
+							Below is an image showing a part of the control flow.
+							</p>
+							<p>
+								<img src="../../img/blog/luao_trace_flow.png" width="474" height="442" />
+							</p>
+							<p>
+							Which we will then use to identify each handler, stripping out every condition that does not relate to our handler will leave us with only a few conditions that we can simplify and turn into a single <code>if OpCode == X</code> to reveal the Luraph OpCode of the handler.
+							</p>
+							</p>
+							<h3 id="explorer">Bytecode Explorer</h3>
+							<p>
+							To make visualizing everything a little easier I created a project named <u><a href="https://github.com/ferib/LuaBytecodeExplorer"><code>LuaDecompilerExplorer</code></a></u> designed with the sole purpose of giving my readers a better visualization of what's going on. You can navigate to functions by clicking on their names, resulting in the unfolding of a few properties of that function.
+							Since Lua is recursive you can simply keep on unfolding functions of functions to navigate through the whole binary. A little bonus is that the LuaToolkit <code>LuaBlocks</code> are included, which should help visualize the control flow. 
+							</p>
+							<p>
+							Please note that, at the time of writing, the project is far from being complete and neither is the LuaDecompiler from Part 2. This project took me way too much time and I am not planning on finishing it anytime soon. So I figured I may as well include it in the blog post and open-source it for whoever finds any use with it.
+							</p>
+							<p>
+							<i>NOTE: The project is in a very early stage and has some noticeable bugs in them... as you may know I'm not much of a graphic designer so I couldn't care less.</i>
+							<br/>
+							<i>NOTE2: <b>The project has been discontinued!</b></i>
+							</p>
+							<p>
+								<iframe class="iframe-big" src="https://ferib.dev/LuaDecompilerExplorer/index.html?file=saves/lph_v12.json" style="width: 130%;margin-top:15px; margin-left: -15%; height: 80vh; box-shadow: 1px 1px 9px 5px black;"></iframe>
+							</p>
+							<h2 id="Encoding">Encoding to compiled Lua</h2>
+							<p>
+							Now that we have dumped the Luraph data while also having the lifted Luraph instruction set, we can start to create a Lua binary.
+							Thanks to the LuaToolkit, which not only comes with a LuaDecoder but also a LuaEncoder, we can convert decoded Lua binaries back to an encoded Lua binary file.
+							</p>
+							<p>
+							Unfortunately, this is not in the scope of the blog post. Not that it's difficult to do, it's just that I want to prevent any skid from copy-pasting my tools and doing harm
+							</p>
+							<h2>Stop, gavel time!</h2>
+							<p>
+							Due to <a href="https://torrentfreak.com/blizzard-dmca-notice-wipes-diablo-ii-resurrected-offline-patches-from-github-210610/"><u>recent DMCA takedowns</u></a> and <a href="https://kotaku.com/blizzard-sends-cease-and-desists-to-diablo-ii-resurrec-1846977935"><u>other legal bullshit</u></a>, I have decided to halt the development of my Luraph Devirtualization Toolkit.
+							It has come to my attention that most of my research will be abused. I wish no harm to the Luraph developer(s) or its users, therefore I have chosen to not finish the full DeLuraph project.
+							<del>The <u><a href="https://github.com/ferib/De-Luraph">source code</a></u> is available on GitHub for those who wish to use it as a reference while going through the article.</del>
+							</p>
+							<p>
+							With that being said, I still think I managed to do a good job of showing how de-virtualization is done and pinpointing most of its weaknesses, which we will be examining in <a href="#"><u>Part 4</u></a>.
+							Hopefully, your balls didn't turn too blue as I tried to provide as many examples/code-snippets to show you how de-virtualization is done to make up for this.
+							</p>
+							
+							
+							<h2 id="Conclusion">Conclusion</h2>
+							<p>
+							After de-virtualizing Luraph we noticed that the Luraph instruction set is one on one to the original Lua 5.1 instruction set. The packing was looking good but we easily skipped the unpacking by using a Lua VM and breakpointing right after Luraph was done unpacked.
+							However, we did reverse some pieces but we have not achieved a full automated de-virtualization. 
+							I do respect the developers work and I have no intentions of making a working, out-of-the-box, de-virtualization tool.
+							</p>
+							<p>
+							All of the research published in this article is purely for educational use only, the projects created around the research can be found here:
+							<ul>
+								<li><del><u><a href="https://github.com/ferib/De-Luraph">De-Luraph</a></u> - Automated Devirtualization Tool</del></li>
+								<li><del><u><a href="https://github.com/ferib/LuaBytecodeExplorer">LuaBytecodeExplorer</a></u> - UI for LuaToolkit results</del></li>
+								<li><u><a href="https://github.com/ferib/LuaToolkit">LuaToolkit</a></u> - The core library used to handle Lua</li>
+							</ul>
+							</p>
+							<p>
+							In the next blog post, I will attempt to create my own virtualization tool based on everything I have learned from the past few articles. My goal is to provide a custom obfuscation tool based on the knowledge obtained from this research.
+							<!--
+							In <u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u>, I will attempt to create my own virtualization tool based on everything I have learned from the past few articles. My goal is to provide a custom obfuscation tool based on the knowledge obtained from this research.
+							-->
+							</p>
+							<p style="text-align: right">
+							<!--
+							<b>Next article: </b><u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u>
+							-->
+							<b>Next article: </b><code>Coming Soon</code>
+							</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

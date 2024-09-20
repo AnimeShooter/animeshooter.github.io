@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<h1>What does LockDownBrowser really do?<span class="blogpost-date">19/02/2020</span></h1>
+							<p>
+							Just like any other student, I'm too lazy to do anything school-related. Not that I'm dumb or unskilled, but just because I don't <i>feel</i> like doing anything for school. Now imagine you have been doing nothing all year long, and you just figured out you have an exam coming up next week, what do you do? cheating! "Work smart, not hard", right?
+							</p>
+							</header>
+							<h2>What is LockDownBrowser?</h2>
+							<p>
+							First, let me explain what LockDownBrowser is before I tell you my story. LockDownBrowser is a tool used by our school to put your laptop in a 'Lock Down'. This 'Lock Down' will prevent you from using hotkeys like 'alt+tab' or any other combination that moves you out of the browser. The LockDownBrowser tool is required for all exams that are performed on our laptop.<br>
+							This is done to prevent students from cheating on online exams and to prevent students from taking screenshots of the exam questions so that they cannot be shared with other students later on.
+							</p>
+							<h2>LockDownBrowser Protections</h2>
+							<p>
+							LockDownBrowser has multiple client-side protections to counter Virtual Machines, Keyboard hooking to prevent 'alt+tab' or 'Printscreen', Mouse hooking to prevent right-clicking, Scanning external process memory to find applications such as Discord, Slack, Skype, Powerpoint, Outlook, Screencapture software, etc..
+							</p>
+							<h2>How do we escape LockDownBrowser?</h2>
+							<p>
+							With all these protections, it's almost impossible to cheat on an exam, the only thing it didn't hook is the touchpad gesture. 
+							By swiping three fingers from bottom to top its possible to escape the LockDownBrowser. 
+							However, LockDownBrowser increases it's protection when an exam is active. One of these protections that are added during an exam is the "TopMost" detection. It's a function that checks if LockDownBrowser is still focused, 
+							and this function gets called every X seconds.
+							</p>
+							<h1>Hook Protection</h1>
+							<p>
+							But first, let's dive into the most annoying protection, the Keyboard Hooking. As said previously, this protection prevents any kind of keyboard hotkey event like "alt+tab" or "PrtScr", making it nearly impossible to take screenshots or to switch windows.
+							These protections are called "Hooks". Hooks in windows can be initialized using the win API "SetWindowHookEx" and can be removed with "UnhookWindowsHookEx". 
+							We need to find a reference to these functions to find out how they are used.
+							After looking into ``LockDownBrowser.dll`` I found the following function that is responsible for initializing the hooks in LockDownBrowser:
+							</p>
+							<pre>
+							int CLDBDoSomeStuff(int *flag)
+							{
+								int result = 0x0;
+								bool doFirstMouseHook = (*flag >> 7) & 1;   //true if 7th bit is set
+								
+								if((*flag >> 6) & 1){                       //checks if 6th bit is set
+									//initialize hooks
+									KeyboardHookHandle = SetWindowsHookExA(13, KeyboardCallbackFuncPtr, mhod, 0);   //WH_KEYBOARD_LL
+									ShellHookHandle = SetWindowsHookExA(10, ShellCallbackFuncPtr, mhod, 0);         //WH_SHELL
+									if(doFirstMouseHook){
+										MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr_1, hmod, 0);    //WH_MOUSE
+									}else{
+										MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr, hmod, 0);      //WH_MOUSE
+									}
+									if(KeyboardHookHandle){
+										result = 0x0400;
+									}
+									if(ShellHookHandle){
+										result += 0x1000;
+									}
+									int temp = result + 0x0800;
+									if(!MouseHookHandle){
+										temp -= 0x0800;
+									}
+									*flag += 2 * temp;
+									result = temp;
+								}else{
+									//remove hooks if they are set
+									if(KeyboardHookHandle){
+										UnhookWindowsHookEx(KeyboardHookHandle)
+										KeyboardHookHandle = 0;
+									}
+									if(ShellHookHandle){
+										UnhookWindowsHookEx(ShellHookHandle);
+										ShellHookHandle = 0;
+									}
+									if(MouseHookHandle)
+									{
+										UnhookWindowsHookEx(MouseHookHandle);
+										MouseHookHandle = 0;
+									}
+									result = 0x0;
+								}
+								return result; //indicates which hooks are set
+							}
+							</pre>
+							<i>Note: The following code is heavily modified to make it nice looking pseudocode.</i> 
+							
+							<p>
+							As you can see, the function has an "if" statement that is then split into two main pieces.
+							The upper part seems to call a few hooking functions, so I assume this part of the function is responsible for enabling the hooks.
+							Now when we look at the second part of the function, we notice that hooks are getting removed. Seems like this part is cleaning up the hooks.
+							This cleanup part is exactly what we need, but how is it triggered?<br>
+							Take a look at the function itself, it has one argument which is an int pointer.
+							Now, look at the "if" statement and you will notice the first part is triggered whenever the argument points to a value that has its 6th-bit set.
+							When the 6th bit is not set, it skips the first part and jumps straight into the cleanup part of the function, let's keep this in mind for the next step.
+							</p>
+							
+							<h2>Cleaning the hooks</h2>
+							<p>
+							Now that we know how the function above works, we can use it to clean up the mess it has made before.
+							Keep in mind there are many other ways to "bypass" the hooking, we can NOP the whole function, patch the IF statement by patching a bunch of jumps, etc..
+							However, I think it's cooler to just call the function and have a nice cleanup instead of patching a bunch of bytes and leaving a mess behind.
+							<br>
+							Now, to call the function to make it trigger a cleanup, we must set the argument correctly.
+							The only requirement to trigger the cleanup was to have an argument pointing to a value that has no 6th-bit set.
+							This seems easy because we can just have our pointer point to 0x000000, easy, right?
+							</p>
+							
+							<h2>Calling the function</h2>
+							<p>
+							Calling a function from another process isn't hard, but I'm not going into detail here.
+							First of all, we have to create a code cave, this is the one I will be using:
+							</p>
+							<pre>
+							push ebp
+							mov ebp, esp
+							push eax
+							mov eax, arg_ptr    //pointer with value: 0x00 //use 0x1C00 if you want to enable all hooks
+							push eax
+							push LockDownBrowser.CLDBDoSomeStuff()
+							pop eax
+							call eax
+							push 0x1F4          //(500)
+							push kernel32.sleep
+							pop eax
+							call eax
+							jmp                 //jump back to "mov eax, arg ptr" to repeat
+							pop eax
+							mov esp,ebp
+							pop ebp
+							ret
+							</pre>
+							<p>
+							In my code cave, I have added a loop that should call the cleanup function every 500 milliseconds to make sure it won't turn itself back on.
+							The code cave itself is nothing more then an array of bytes that we need to inject into the target process, which is LockDownBrowser.exe.
+							To do this, we first open a handle that we can then use to allocate memory using "VirtualAllocEx()". The next step is to write the bytes to the memory using "WriteProcessMemory", and then use "CreateRemoteThreadEx()" on the external code cave to execute it.
+							If everything worked perfectly, then we should have successfully removed all the hooks from LockDownBrowser, and we can alt+tab and take as many screenshots as we want!
+							But wait a minute... remember the TopMost detection?
+							</p>
+							
+							<h1>The "TopMost" Detection</h1>
+							<p>
+							Once you finally managed to escape the LockDownBrowser when an exam is active, you will get warned whenever LockDownBrowser is no longer focused.
+							This usually means you did alt+tab to change the focused window. The warning you get will tell you to stop what you did, or it will close. 
+							Now guess what happens when you do it a second time? It will prompt a message box again and close.<br>
+							What a bummer.. does that mean we did all this hard work for nothing?
+							</p>
+							
+							<h2>Bypassing the "TopMost" Detection</h2>
+							<p>
+							Don't worry, we can also bypass this detection!<br>
+							The TopMost function is a real pain in the ass to find, but we know that it's only triggered when LockDownBrowser itself loses focus.
+							One way to find this function is to find references for "GetWindowThreadProcessId" and "GetForegroundWindow", the combination of these two win API functions are used to do the main part of the TopMost detection.
+							<br>
+							LockDownBrowser will first call "GetForegroundWindow" to find out what window is currently focused, the function returns a handle.
+							The handle is then passed to "GetWindowThreadProcessId", this function will return the thread id that created the window.
+							Now the cool part is that "GetWindowThreadProcessId" will only return a valid id if the window handle was created inside the current process.
+							And that is how LockDownBrowser detects if the currently focused window is created by another process.
+							It's really easy to bypass this one, just write the 0xC3 instruction at the start of the TopMost function, and you are good to go.
+							</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

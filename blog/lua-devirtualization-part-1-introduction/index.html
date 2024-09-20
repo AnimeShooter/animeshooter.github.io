@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+						<h1>Lua Devirtualizing Part 1: Introduction to Virtualising</h1>
+
+						Scripting languages are commonly used by developers and come in very handy.
+						One of the most exploited things a
+						
+						For those who didn't know yet, Lua is a very minimalistc scripting language with only a handfull of bytecodes.
+						Our target is using Lua version 5.1, so to keep things simple we will also target Lua with version 5.1, meaning that, 
+						everytime I refer to 'Lua', I am refering to Lua version 5.1 (unless I explicitly state a version).
+					</header>
+						<h2>Lua Crash Cours</h2>
+						<p>
+						Before we get started, there are a few things we need to know about Lua.
+						Lua is a very basic scripting language that comes with exactly 38 bytecodes and a total of 5 registers.
+						The registers can't be used at the same time, because some of them are shared.
+						</p>
+						<p>
+						The registers are named A, B, C, <strike>Ax,</strike> Bx and sBx. The first one, A, is a 8-bit register while the next two, B and C are both 9-bit register.
+						<strike>Then the Ax register is a 26-bit register, which is just a combination of register A, B and C.</strike>
+						Our last two register, Bx and sBx are <strike>also</strike> a combination, Bx is only 18-bits and is combined from register B and C.
+						Lastly the sBx register is a signed Bx register, this register is often used for all kinds of jumps.
+						</p>
+						<p>
+						For those who would like to jump into the opcode
+						</p>
+						<h2>But why Lua?</h2>
+						<p>
+						Decompiling and reverse engineering Lua is pretty easy thanks to the nature of the language, it's not a flaw, it was a design choise.
+						But that design choise may be a hughe disatvantage for developers who want to make money with their Lua scripts.
+						And trust me, I know plenty of people that do make money of selling such scripts.
+						</p>
+						<p>
+						The Lua language has become very popular thanks to video games like World of Warcraft, League of Legens, Roblox, Garry's Mod, and probably a lot more.
+						Not all games allow you to execute Lua from the user interface, 
+						but World of Warcraft for example allows you to use third-party Lua based AddOns, such AddOns are limited to only modify the user interface.
+						But spoiler alert, people often use modify the game to extend the Lua API's so that the Lua interface is capable of (for example) automating gameplay.
+						</p>
+						<p>
+						Now that people figured out how to put Lua on steroids, they can start developing more veristile scripts using just Lua combined with a tool that extends the Lua API.
+						These tools to extend the Lua API are often called '<b>Lua Unlockers</b>', because, they <i>'unlock'</i> Lua API's that were not originaly in the game.
+						Most of those Lua Unlockers are sold on game hacking forums, and they often are well documented so anyone can use them right away, which, makes everything just a little more interesting.
+						</p>
+						<h2>Lua Obfuscation</h2>
+						<p>
+						When people create their versitile Lua script they often put a lot of time on solving a given problem.
+						Solving that problem often require a lot of reaschers and only a little amount of code, meaning that most of your valuable time was put into questioning "how to fix problem X" while very little time was spend on smashing the keyboard/keystrokes.
+						So now that you have your 'magic' solution, the last thing you want is, having the first guy you sell the lua script to steal your magic solution.
+						</p>
+						<p>
+						And this is where <b>Luraph</b> comes in place, Luraph is a obfuscation tool for Lua that, you guessed it, obfuscates lua.
+						Below you will find a snippit from a Luraph obfuscated Lua file so you can have an idea of how a Luraph obfuscated file look like.
+						</p>
+						<p>
+						<pre class="code-box">
+						local lIll1il1I11i111l1iii1 = assert
+						local lIllIl1IIi1iII1Iii1 = select
+						local lii1iii11ilIIIl11Il = tonumber
+						local iI1lili1I1Iiii11i1l = unpack
+						local i11iIIII1lilIl1i1Il = pcall
+						local I1lIII1ii111IIIlii1 = setfenv
+						&lt;...>
+							-- table loops here
+						&lt;...>
+						local function lIll11ili1IiiIilill()
+							while true do
+								local IIliIIiiI11111iI1l1 = il1lIllli1illIiiliI[IiI1lIii1iliiI1l1il]
+								local liiiil1lii1llll1i11 = IIliIIiiI11111iI1l1[26353]
+								IiI1lIii1iliiI1l1il = IiI1lIii1iliiI1l1il + 1
+								local I1ilIiIil1ii1iI1i1I = IIliIIiiI11111iI1l1[26628]
+								local lilli1II1il1lliiIii = IIliIIiiI11111iI1l1[19330]
+								local iIli1iiiIl1li1il1I1 = IIliIIiiI11111iI1l1[63082]
+								local iII111IiiIi11liliiI = IIliIIiiI11111iI1l1[19330] - lIl11I1lIliIl1iIilil1
+								local lIliiI1iIIIIiill1iI = IIliIIiiI11111iI1l1[22182]
+								if liiiil1lii1llll1i11 >= 17 then
+									if liiiil1lii1llll1i11 &lt; 25 then
+										if liiiil1lii1llll1i11 &lt; 21 then
+											if liiiil1lii1llll1i11 >= 19 then
+												if liiiil1lii1llll1i11 ~= 20 then
+													if I1ilIiIil1ii1iI1i1I == 4 then
+														IiI1lIii1iliiI1l1il = IiI1lIii1iliiI1l1il - 1
+														il1lIllli1illIiiliI[IiI1lIii1iliiI1l1il] = {
+															[26353] = 31,
+															[63082] = (iIli1iiiIl1li1il1I1 - 25) % 256,
+															[22182] = (lIliiI1iIIIIiill1iI - 25) % 256,
+															[19330] = 0
+														}
+													elseif I1ilIiIil1ii1iI1i1I == 121 then
+														IiI1lIii1iliiI1l1il = IiI1lIii1iliiI1l1il - 1
+														il1lIllli1illIiiliI[IiI1lIii1iliiI1l1il] = {
+															[26353] = 9,
+															[63082] = (iIli1iiiIl1li1il1I1 - 233) % 256,
+															[26628] = (lIliiI1iIIIIiill1iI - 233) % 256,
+															[19330] = 0
+														}
+													elseif I1ilIiIil1ii1iI1i1I == 75 then
+														IiI1lIii1iliiI1l1il = IiI1lIii1iliiI1l1il - 1
+														il1lIllli1illIiiliI[IiI1lIii1iliiI1l1il] = {
+															[26353] = 6,
+															[63082] = (iIli1iiiIl1li1il1I1 - 75) % 256,
+															[26628] = (lIliiI1iIIIIiill1iI - 75) % 256,
+															[19330] = 0
+														}
+													else
+						&lt;...>
+								return I11i1IIiil1l11Il11l
+							end
+							local liIli1lil11ll1Iilli = lIlIilii1illI111i1iii()
+							return ll1I1lliii1iiIii1ii(liIli1lil11ll1Iilli, Iii1i11ii1IlIillli1)()
+						end
+						lIllll1i1iilIIIi11lIi(
+							"LPH!F03BAE013H00D7043H00164H00710A0200393B393BC84FFF4E2H393F436B0F0&lt;...>9C9F5B59001961A7E0E",
+							i1llilll1iliI1ii1l1()
+						)
+						</pre>
+						<p>
+						<p>
+						<i>NOTE: I have removed content wherever the <tt>&lt;...></tt> signs are located, the file was about 72KB total.</i><br/>
+						<i>NOTE 2: The Lua was ran trough a Lua beautifier to keep it pretty.</i>
+						</p>
+						<p>
+						The Luraphed file can be divided into four sections, the first section is responsible for setting up the virtual environment for the Lua VM <i>(spoiler alert, we are looking at a Virtual Machiene)</i>.
+						Section two seems to define a lot of helper functions, which we will discuss in detail lateron.
+						Section three seems to setup some kind of local environment, Section four is this big IF section that seems to be responsible for interpreting instructions,
+						and finally, the last section contains a big string, starting with <tt>"LPH!</tt>, which seems to be holding hexadecimal values.
+						</p>
+						<h3>Cleaning it up</h3>
+						<p>
+						Before actually starting doing something, I had a look at all those variables and started to re-name them using just notepad++.
+						Notepad++ comes with this 'search and replace' feature, which I used to name the first few variables as seen below.
+						</p>
+						<p>
+						<pre class="code-box">
+						local lassert = assert
+						local lselect = select
+						local tonumberf = tonumber
+						local lunpack = unpack
+						local pCallF = pcall
+						local setfenvf = setfenv
+						local setmettabll = setmetatable
+						local typef = type
+						local getfenvv = getfenv
+						local ToStr = tostring
+						local err = error
+						local StrSub = string.sub
+						local StrByte = string.byte
+						local StrChar = string.char
+						local StrRep = string.rep
+						local StrGsub = string.gsub
+						local StrMatch = string.match
+						</pre>
+						</p>
+						<p>
+						Not only did I rename those, I have also renamed a few more obvious things such as the variable name of the <tt>"LPH!</tt>, and thats when I took another look at the whole script.
+						After having a quick I look I reliased there are functions from section 2 that get referenced a lot, so I attempted to reverse engineer those first. Have a look at few of the functions below.
+						</p>
+						<p>
+						Original:
+						<pre class="code-box">
+						local function IiIil1I1111ll1i1ii1()
+							local lIlliI1i1IIiiI1i1llil = Iiii11iiiIl1lllil1l(IIi1liiiiil1iIiil1l, iiIIIl11IllI1lIl111, iiIIIl11IllI1lIl111)
+							iiIIIl11IllI1lIl111 = iiIIIl11IllI1lIl111 + 1
+							return lIlliI1i1IIiiI1i1llil
+						end
+						</pre>
+						Renamed:
+						<pre class="code-box">
+						local function LPH_GetByte()
+						  local var1 = StrByte(LPHSTRING, LPH_IP, LPH_IP)
+						  LPH_IP = LPH_IP + 1
+						  return var1
+						end
+						</pre>
+						<p>
+						
+						<p>
+						Original:
+						<pre class="code-box">
+						local function Ii111I1II1lIl1ll1ll()
+							local lIlliI1i1IIiiI1i1llil, lIliIl1il1Ill1l1Iiill, lIll111IlilIlIIi1i1lI, lili1l11lIiIIlIl1i1 =
+								Iiii11iiiIl1lllil1l(IIi1liiiiil1iIiil1l, iiIIIl11IllI1lIl111, iiIIIl11IllI1lIl111 + 3)
+							iiIIIl11IllI1lIl111 = iiIIIl11IllI1lIl111 + 4
+							return lili1l11lIiIIlIl1i1 * 16777216 + lIll111IlilIlIIi1i1lI * 65536 + lIliIl1il1Ill1l1Iiill * 256 +
+								lIlliI1i1IIiiI1i1llil
+						end
+						</pre>
+						Renamed:
+						<pre class="code-box">
+						local function LPH_GetDWORD()
+						  local b1, b2, b3, b4 = StrByte(LPHSTRING, LPH_IP, LPH_IP + 3)
+						  LPH_IP = LPH_IP + 4
+						  local result = b4 * 0x1000000 + b3 * 0x10000 + b2 * 0x100 + b1
+						  return result
+						end
+						</pre>
+						</p>
+						<p>
+						I hope those two are enough to see how effective the variable re-name is, and how much content got revealed?
+						Another thing that took my attention was this global variable that always got increased, I renamed it to <tt>LPH_IP</tt>.
+						Such variable is often refered to whats called a Virtual Instruction Pointer, it's what the VM will use to keep track of its current instruction pointer.
+						But that didn't really turned out to be the case, since those helper functions are responsible for decoding the LPH content and thus are only used to initialisate the contents for the Lua VM.
+						</p>
+						<p>
+						For the record, there are more then just those two helper functions. The reason you only got to see these two is because I only need two to proof my point.
+						Below is a summary of all the helper functions I found, the function names are gussed based on it's body, I will keep using these function names trough out the whole article.
+						<ul>
+							<li>LPH_GetByte : Decodes a byte from the LPH string.</li>
+							<li>LPH_GetDWORD : Decodes a int from the LPH string.</li>
+							<li>LPH_GetBits : Performs weird bitwise logic <i>(possible bytecode decoder)</i></li>
+							<li>LPH_GetFloat : Decodes a Float <i>(or Double, not sure)</i> from the LPH string.</li>
+							<li>LPH_GetDWORD_2 : Decodes Unknown 4bytes from the LPH string.</li>
+							<li>LPH_GetString : Decodes Unknown 4bytes from the LPH string.</li>
+							
+						</ul>
+						All of them except <tt>LPH_GetBits()</tt> increase the <tt>LPH_IP</tt> variable by how much data they take from the LPH string.
+						The <tt>LPH_GetDWORD_2()</tt> seems to be very similar to the <tt>LPH_GetString()</tt>, I assume that <tt>LPH_GetDWORD_2()</tt> may be used for some kind of encrypted string handeling.
+						</p>
+						<h3>Unpacking</h3>
+						<p>
+						Section one was basically reverse by simpely cleaning up and renaming those variables.
+						Unfortunately, section two wont be as easy as that. 
+						It seems like someone spend some actual time in here by using tables with random looking numbers to throw me off track.
+						Below is the main function for section two:
+						</p>
+						<p>
+						<pre class="code-box">
+						local function FourLoopFunc()
+							local table_result = {[69434] = {}, [58352] = {}, [92302] = {}, [122901] = {}} -- random numbers as obfuscation
+							LPH_GetByte()
+							local endd = LPH_GetDWORD()
+							
+							-- do: table_result[#4]
+							for index = unk_var_1, endd do
+							&lt;...>
+							
+							-- do: table_result[#2]
+							local endd = LPH_GetDWORD() -
+							(#{&lt;...>
+							for index = unk_var_1, endd do
+							&lt;...>
+							
+							-- do: table_result[9173]
+							LPH_GetDWORD()
+							LPH_GetByte()
+							LPH_GetByte() -- IP += 6
+							table_result[9173] = LPH_GetByte()
+						
+							-- do: table_result[#3]
+							local endd = LPH_GetDWORD() -
+							(#{&lt;...>
+							for index = unk_var_1, endd do
+							&lt;...>
+						
+							-- do: table_result[#1]
+							LPH_GetDWORD()
+							LPH_GetByte()
+							LPH_GetByte() -- IP += 6
+							local endd = LPH_GetDWORD()
+							for index = unk_var_1, endd do
+								table_result[69434][index] = LPH_GetDWORD()
+							end
+						
+							-- do: table_result[81381]
+							LPH_GetByte()
+							LPH_GetDWORD() -- IP += 5
+							table_result[81381] = LPH_GetByte()
+						
+							-- do: table_result[109654]
+							LPH_GetDWORD()
+							LPH_GetDWORD()
+							LPH_GetByte()
+							LPH_GetByte() -- IP += 10
+							table_result[109654] = LPH_GetByte()
+						
+							LPH_GetDWORD()
+							LPH_GetDWORD()
+							LPH_GetByte()
+							LPH_GetDWORD()
+							LPH_GetDWORD() -- IP += 17
+							return table_result
+						end
+						</pre>
+						</p>
+						Have a good look and you will see that it all comes down to <tt>table_result</tt>, the table is asigned with 4 entries that have weird numbers.
+						You can see I have added comments such as <tt>do: table_result[#1]</tt> to indicate which number belongs to which index of the table.
+						But other then that, I snipped out all nasty loops since I dont feel like spending a night or two on this, so well played Luraph, you win this round.
+						<p>
+						<p>
+						<img src="../../img/blog/secrets_meme.png" width="359" height="266" alt="Alright then, keep your secrects, Meme"/>
+						</p>
+						<p>
+						Just kidding, we can just continue to the next section, you will see why.
+						</p>
+						<h3>Interpreting the interpreter</h3>
+						<p>
+						Section three is where it's at, remember that one function with all the IF statements? well, this is him now:
+						</p>
+						<p>
+						<pre class="code-box">
+						local function UnpackFunctionidk()
+							while true do
+								local inst_table = flp_ret_58352[index]
+								local loop_opcode = inst_table[26353] -- OPCODE
+								index = index + 1 -- VM instruction pointer? (LPH_IP is just stack data?)
+								local loop_v1 = inst_table[26628] -- A or B
+								local loop_v2 = inst_table[19330] -- Bx
+								local loop_v3 = inst_table[63082] -- A or B
+								local loop_v4 = inst_table[19330] - unk_var_2 -- sBx (- 2^18/2, 17bit)
+								local loop_v5 = inst_table[22182] -- C
+								if loop_opcode >= 17 then
+								  if loop_opcode &lt; 25 then
+									 if loop_opcode &lt; 21 then
+										if loop_opcode >= 19 then
+										   if loop_opcode ~= 20 then
+											  if loop_v1 == 4 then
+												 index = index - 1
+												 flp_ret_58352[index] = {
+													[26353] = 31,
+													[63082] = (loop_v3 - 25) % 256,
+													[22182] = (loop_v5 - 25) % 256,
+													[19330] = 0
+												 }
+											  elseif loop_v1 == 121 then
+												 index = index - 1
+												 flp_ret_58352[index] = {
+													[26353] = 9,
+													[63082] = (loop_v3 - 233) % 256,
+													[26628] = (loop_v5 - 233) % 256,
+													[19330] = 0
+												 }
+											  elseif loop_v1 == 75 then
+												 index = index - 1
+												 flp_ret_58352[index] = {
+													[26353] = 6,
+													[63082] = (loop_v3 - 75) % 256,
+													[26628] = (loop_v5 - 75) % 256,
+													[19330] = 0
+												 }
+											  else
+												 if loop_v5 == 1 then
+													return true
+												 end
+												 local IiIiil11IIll1ii1li1 = loop_v3 + loop_v5 - 2
+												 if loop_v5 == 0 then
+													IiIiil11IIll1ii1li1 = lIlIIIli1iIlll1IlliiI
+												 end
+												 return true, loop_v3, IiIiil11IIll1ii1li1
+											  end
+										   else -- opcode 20 (LEN)
+											  if loop_v5 > 255 then
+												 loop_v5 = table_set_1[loop_v5 - 256][int_44827]
+											  else
+												 loop_v5 = result_packed[loop_v5]
+											  end
+											  if loop_v1 > 255 then
+												 loop_v1 = table_set_1[loop_v1 - 256][int_44827]
+											  else
+												 loop_v1 = result_packed[loop_v1]
+											  end
+											  result_packed[loop_v3] = loop_v5 ^ loop_v1
+										   end
+										elseif loop_opcode ~= 18 then -- opcode 17
+						</pre>
+						</p>
+						<p>
+						Remember those nasty tables we just talked about? here they are again.
+						Pay close attention to the start of the IF chain, the <tt>loop_v1</tt> to <tt>loop_v5</tt> are temporarly storage variable for the registers, which are obtained from the table <tt>inst_table</tt>.
+						The following data from the <tt>inst_table</tt> can be mapped to instruction info:
+						<ul>
+							<li>inst_table[26353] : Lua Bytecode (custom).</li>
+							<li>inst_table[26628] : Register B</li>
+							<li>inst_table[19330] : Register Bx.</li>
+							<li>inst_table[63082] : Register A.</li>
+							<li>inst_table[19330] - unk_var_2 : Register sBx.</li>
+							<li>inst_table[22182] : Register C.</li>
+						</ul>
+						We can see that <tt>26353</tt> is used to obtain a variable that is constantly checked against a number, ranging from within byte range.
+						I assume those bytes represent custom Luraph bytecode, which can be mapped against a Lua bytecode.
+						Another thing I noticed is that <tt>19330</tt> was used twice, which makes sence because the register sBx is derived from Bx, this seems to be done by subtracting <tt>unk_var_2</tt> from Bx.
+						The value of the <tt>unk_var_2</tt> should be exactly 0x1FFFF in order to clear the first 17 bits of Bx, which is needed to calcualte sBx.
+						</p>
+						<p>
+						We can verify the value of <tt>unk_var_2</tt> by looking right below section one, there you will find the following code.
+						<pre class="code-block">
+						local getbyte_7E = StrByte("~", 1) -- 7E
+						local unk_var_1, unk_var_2 = #{273},
+							#{ 5703, 3015, 5331, 6890, 5857, 5221, 219, 1250, 2422, 4066, 2329, 3462, 2189, 6944, 4479, 2107, 6710, 5803, 4390, 5185, 806, 3642, 5866} + getbyte_7E + 130922
+						</pre>
+						The variables have already been renamed to make it easy to read. Variable <tt>getbyte_7E</tt> converts the ASCII <tt>~</tt> to a byte, which, acording to the ASCII table, represents value <tt>0x7E</tt>.
+						Our next line defines both <tt>unk_var_1</tt> and <tt>unk_var_2</tt>, the first one get value <tt>#{273}</tt>, the curly brackets indicate it'a list while the hashtag indicates it's grabbing the size of the list.
+						Meaning that <tt>unk_var_1</tt> will receive value <tt>1</tt>. Our next variable is a little more complex, but again, it comes down to the length of a list with random values, with addition of our <tt>getbyte_7E</tt> variable holding value of <tt>0x7E</tt> and lastly, the addition of number <tt>130922</tt>.
+						Making it look very complex, yet we know the list contains <tt>23 entries + 0x7E + 130922</tt> which equals <tt>131071</tt> or <tt>0x1FFFF</tt> in hexadecimal.
+						Look at that, 0x1FFFF is the exact value that is needed to subtract from Bx to calculate sBx.
+						</p>
+						<p>
+						Now that we know which register is what, we can have a looking at the IF statements.
+						One of the first thing I noticed is the if statements itself, they almost never have an equal statement, instead, they seem to use al kinds of other opperands like, less then or greater then.
+						Basically any operator that is not the equal operator will be used <i>(if possible)</i> to make reversing a bit harder, as we will see in the next part.
+						</p>
+						<h3>Lifting to Lua</h3>
+						<p>
+						This is it, this is what y'all been waiting for.
+						For those who dont know yet, Lifting is basically the process of mapping one instructionset to another, and in our case, we will be lifting the Luraph instructions to the original Lua instructions.
+						Before we can do this we must identify the Luraph instructions, this explains why the IF statements are obfuscated in the first place. Doing a simple RegEx to check the Luraph bytecode and then read the body of that IF statement to identify the corresponding Lua bytecode will be a bit harder to do.
+						Not only do we have to figure out a way to identify the Luraph bytecode, we also need to understand the actual functionallity of the original Lua bytecodes before we can identify them.
+						</p>
+						<p>
+						This <a href="https://the-ravi-programming-language.readthedocs.io/en/latest/lua_bytecode_reference.html">Lua 5.3 bytecode Reference</a>, which is for Lua 5.3 <i>(which isn't 5.1, I know)</i>, can be used to get a better understanding of how each Lua bytecode works.
+						Please note that the reference is listed is for Lua 5.3, lets not forget that Lua 5.1 was released in 21 Feb 2006, so finding fancy documentation isn't easy.
+						Lucky for you, there is in fact a <a href="https://github.com/JustAPerson/lbi/blob/master/src/lbi.lua#L268">Lua Bytecode Interpreter</a> project on Github, which was written for Lua 5.1, in Lua 5.1.
+						The file <tt>src/lbi.lua</tt> contains the Lua 5.1 bytecode interpreter at line 268, we can use this to manually see how Luraph is interpreting each instructions.
+						Ofcours, once we do a few instructions manual, we should jump into making a parser that can automaticly identify the Luraph bytecode from the IF statement and then compare the body of that IF statement in order to lift the Luraph bytecode to a Lua bytecode.
+						</p>
+						<p>
+						Once we have generated our dictionary with Luraph to Lua bytecodes we can grab all the bytes located in section four, and run them trough one of the helper functions.
+						The LPH string has a little compression mechanism build-in to reduce the amount of repeatable numbers for some reason.
+						Anyway, once the LPH string is uncompressed, or once you managed to dump the content in another way, you are now able to lift the Luraph bytecode to Lua bytecode.
+						</p>
+						<h3>Automated Lifting</h3>
+						<p>
+						Unfortunately all the Luraph bytecodes change for every file it generates, meaning that we do have to identify every single bytecode again.
+						Therefore automating the process is a must. Not only do the bytecodes change, the register table index also changes, which makes it again a little harder to automate the process.
+						</p>
+											
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

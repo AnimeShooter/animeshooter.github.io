@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<h1>Protecting Packet Tracer Myself <s>Because No One Gives a F*ck</s><span class="blogpost-date">19/02/2021</span></h1>
+							<p>
+							In my <u><a href="https://ferib.dev/blog/cheating-your-grades-with-Cheat-Engine-the-roast-of-Packet-Tracer">previous blogpost</a></u>, I have discussed how students are able to exploit Packet Tracer to cheat their exams. You may have to read the article first before you continue, the article explains how the Packet Tracer software can be exploited and gives advice on how to prevent such techniques. The point is that Cisco, the company behind the Packet Tracer software, just doesn't seem to care at all how good or bad the software is secured.
+							</p>
+							<p>
+							My previous blogpost on Packet Tracer has been sent to Cisco, and at the time of writing, there wasn't any response. So this leaves educational institutions with a big problem, a problem that can only be solved by the original software developers <i>(Cisco)</i>?
+							</p>
+							<p>
+							No, Thanks to reverse engineering, we can figure out how the Packet Tracer software works, and then modify the Packet Tracer binary to work in a way we want! The goal of this article is to improve Packet Tracer by making it more secure without the need for its source code.
+							<p>
+							<p>
+							<i><b>NOTE:</b> Cisco has responded to me <b>after</b> I had written this article. I had someone more professional help me the second time I contacted Cisco.</i>
+							</p>
+							</header>
+							<h2>My Story</h2>
+							<p>
+							Unfortunately, I have recently been expelled from school for developing a <u><a href="https://github.com/ferib/PacketTracerRecovery">Packet Tracer Password Recovery tool</a></u>, the school considered that my tool was an attempt to fraud exams. Not only my own exams, but they also accused me of helping thousands of other students to fraud their exams. Even tho there was no proof of me actually using the software on any exam... They then asked me the following question, "Can Packet Tracer still be used to provide a fair exam?", and the answer to that question is... well... you will able to answer yourself after reading the whole article.
+							</p>
+							<h2>The Plan</h2>
+							<p>
+							With that question in mind, using the original Packet Tracer software was a no go, the software has no obfuscation, no anti-debugging, no nothing <i>(not even <u><a href="https://en.wikipedia.org/wiki/Address_space_layout_randomization">ASLR</u></a>)</i>. To improve the security of the software, we have to implement all of those features so we can prevent as much hacks as possible in the future. Sounds impossible without the source code? well, how about developing a DLL that gets called by Packet Tracer at startup? or a loader that manually maps Packet Tracer into memory and then scans memory regions to check if anyone attempted to modify code?
+							</p>
+							<p>
+							Those are all great ideas, they greatly improve security but there is one thing that's missing, there is no key component that forces a student to use the modified version... There must be something that forces a student to use our own specific version of Packet Tracer... and that should be... the file format! Yes, with the .pka file format, we can force students to use a specific version. Any of you boomers remember Packet Tracer version 5? Good luck using version 5 .pka files in the new version 7. Spoiler alert, when you do, Packet Tracer throws an error, showing that your .pka file format is outdated.
+							</p>
+							<h3 id="Plan">The Actual Plan</h3>
+							<p>
+							So what we have to do is figure out how a .pka file works exactly and create our own version. It is important for us that we can unpack the original .pka file so we can then re-pack an existing .pka file to our own format. Once we have our own format, we have to patch our secure version of Packet Tracer and replace the original unpacking algorithm with our custom one. The replacement of the algorithm can be done by modifying the original algorithm just enough so it will no longer accept original .pka files.<br>
+							<i>We can go all crazy here by using a custom DLL to hook the original algorithm and use a more complex algorithm, but for today I will just show a basic, 'good enough' example.</i>
+							</p>
+							<p>
+							The benefit is that our 'magic' algorithm is private, and the software containing the magical algorithm is <i>only</i> handed out to students of the educational institution.
+							Therefore making it impossible for students to use existing tools that target the original version of packet tracer.
+							Not only do we prevent public known tools <i>(for <u><a href="https://github.com/axcheron/ptexplorer">example</a></u>)</i>, but we can also reduce the lifetime of new tools by regularly updating the 'magic' algorithm to force a cat and mouse game between educators and students.
+							</p>
+							<p>
+							<i>NOTE: Version 7.3 and above have ASLR enabled, this research was done on version 7.2.1.</i>
+							</p>
+							<h2 id="TheRealDeal">Reversing the activity file format (.pka)</h2>
+							<p>
+							First things first, before we can start implementing our own magic algorithm, we need to reverse-engineer the current algorithm that is used to encode/decode the .pka file format. Thanks to my previous blog post I already have a good knowledge of what Packet Tracer is made of. One of the noticeable things is that it uses the Qt5 framework to handle strings and files.
+							</p>
+							<h3>Looking for 'File'</h3>
+							<p>
+							The first thing I did was throw the Packet Tracer binary into IDA and look at the import table, mainly looking for the Qt5 import functions. While doing that, I made use of IDA's search feature so it will only show me a list of functions that contain a given string in their name. Since I know that Packet Tracer will use some kind of function to read the .pka file, I simply started looking for functions containing "Open", "Read", "Stream", "File", etc in their name.
+							</p>
+							<p>
+							<img src="/img/blog/ida_search_import_string.png" alt="IDA string search result" width="691" height="266"/>
+							</p>
+							<p>
+							Looking into all of those functions will be time-consuming, have a look at the image above to get an idea of how many results I got. Therefore I am only interested in the constructors of a given class, because, all I want to know (for now) is if Packet Tracer is actually using that class or not. Packet Tracer has to call the constructor at least once to create the object, therefore I did a quick xref to find out if the function was used by Packet Tracer. Now I should have an idea of which classes Packet Tracer is using, and it's time to fire up Cheat Engine.
+							</p>
+							<p>
+							Once Cheat Engine is open, it's time to breakpoint the constructor functions and load in a .pka file. My breakpoints are placed on all variants of the <tt>QFile::File</tt> function, time to load in a .pka file and see what happens.
+							</p>
+							<p>
+							Let's not waste too much time here, after my breakpoint got triggered I checked the stack and wrote down three functions that are coming from the Packet Tracer base image. I then threw them all three into IDA to have a quick look at what they do, and based on their Qt5 function calls and string references, it seems that the two of them were used to warn the user that he may lose progress in his current file by loading in the new .pka file. That means we can throw those two in the garbage and focus on the one we have left.
+							</p>
+							<h3>Single steps</h3>
+							<p>
+							Alright, back to the one function that has the real sauce in it, I opened the function in IDA and breakpoint the start of the function in Cheat Engine. By looking at the IDA graph I can have a better look at the control flow while I single-step through the assembly code using Cheat Engine debugger. The below image shows the control flow of the function we are analyzing.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_function_stage0_versition_ctrflow.png" alt="IDA Version XML Function" width="1267" height="783" />
+							</p>
+							<p>
+							Have a close look at the yellow block, it calls the constructor to create a Qt5 string, then calls an unknown function <i>(spoiler alert, its <tt>pkaUnpackContent</tt>)</i>, calls to get the size of a QByteArray object, and then jumps to the blue blocks if the size is not zero. Looking a bit further in the blue blocks you can see it is referring to string <tt>&lt;VERSION></tt> and <tt>&lt;/VERSION></tt>, so to me, it looks like the XML got unpacked at that point. Spoiler alert, I gave the 'unknown' function the name 'pkaUnpackContent' so you may have already guessed the magic happens in there.
+							</p>
+							<p>
+							But the real question is not where it happens, it is how it happens! To figure these out, let's have a look at the function <tt>pkaUnpackContent</tt> in IDA's graph view.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_pkaUnpackContent_ctrlview.png" alt="IDA PkaUnpack Function" width="1101" height="827" />
+							</p>
+							<p>
+							Again, I have analyzed the function and cut out the boring stuff. You can see the full control flow for <tt>pkaUnpackContent</tt> in the lower-left corner and then the useful blocks are zoomed into. I debugged the function by single-stepping through it and then watching which arguments get feed into the function and what comes out of it by keeping a close look at the buffer holding the raw .pka bytes, I then noticed that the buffer changed after it executed the yellow blocks in the above screenshot. Oh and because the two yellow blocks you see are responsible for doing the four stages of decoding, meaning we got again a little step closer to our goal. So close that we can almost see the stages.
+							</p>
+							<h3 id="Decoding">The Stages of Decoding</h3>
+							<p>
+							After single stepping and keeping a close eye on the heap, we have managed to find multiple functions that are responsible for manipulating data that was originally coming from the raw .pka file. Therefore I will go into each function in greater detail and describe how I reversed every single assembly instruction of them, or at least, the instructions that are relevant to the decoding process. Below is the list of stages that we will be looking into.
+							<ul>
+							<li><a href="#stage1">Stage 1: Reverse Xor</a></li>
+							<li><a href="#stage2">Stage 2: Pump it up</a></li>
+							<li><a href="#stage3">Stage 3: Another Xor</a></li>
+							<li><a href="#stage4">Stage 4: Decompressing</a></li>
+							</ul>
+							Oh and... I have found a GitHub repository online that was capable of unpacking version 5.x of the file format. According to that repository they only used stage 1 and stage 4 of the above encoding/decoding stages in version 5.x. This means that Cisco is actually taking action against people like me, which is a good thing to see!
+							</p>
+							<h4 id="stage1">Stage 1: Reverse Xor</h4>
+							<p>
+							Alright, if you remember the last screenshot, you will see that there is a function named <tt>pka_stage1_2_GenerateBuffer</tt>, and you probably guessed it, it is responsible for decoding both stage 1 and 2 of the buffer. The control flow of the image is shown below
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_stage21_proxy_call.png" alt="IDA proxy call function" width="351" height="288" />
+							</p>
+							<p>
+							There is not much going on here, other than passing a few hardcoded arguments to another function call. I have named the function that gets called <tt>pka_loopDecryptedBuffer</tt>, the control flow of that function can be found in the image below.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_stage21_loop_xor.png" alt="IDA reverse xor loop function" width="1606" height="776" />
+							</p>
+							<p>
+							Now have a look at the two pink blocks <i>(mouseover/tap image to zoom in)</i>, surprise surprise, it seems to be a loop, and if you look at the end of the second pink block, you also able to see an XOR assembly instruction. The two pink blocks are the first stage of decoding, they do XOR, starting with the last byte in the array while using the length of the buffer to create the key. Please have a good look at the two pink blocks and take a deep look at the assembly instruction before you continue reading.
+							</p>
+							<p>
+							Think you understand what's going on? then it is time to show you my C# code that I wrote to re-create the reverse XOR decoding. The below function <tt>unpackStageOne</tt> should give you a better understanding of what the assembly xor was doing.
+							<pre class="code_box">
+							<span class="c_blue">private bool</span> <span class="c_yellow">unpackStageOne</span>()
+							{
+								<span class="c_blue">byte</span> k <span class="c_pink">=</span> (<span class="c_blue">byte</span>)<span class="c_blue">this</span>.Buffer.Length;
+								<span class="c_blue">int</span> s <span class="c_pink">=</span> <span class="c_blue">this</span>.Buffer.Length;
+								<span class="c_blue">for</span> (<span class="c_blue">int</span> i <span class="c_pink">=</span> <span class="c_purple">0</span>; i <span class="c_pink">&lt;</span> <span class="c_blue">this</span>.Buffer.Length; i<span class="c_pink">++</span>)
+								{
+									<span class="c_blue">byte</span> ch <span class="c_pink">=</span> <span class="c_blue">this</span>.Buffer[<span class="c_blue">this</span>.Buffer.Length <span class="c_pink">-</span> i <span class="c_pink">-</span> <span class="c_purple">1</span>];
+									<span class="c_blue">byte</span> a <span class="c_pink">=</span> (<span class="c_blue">byte</span>)(k <span class="c_pink">*</span> (<span class="c_blue">byte</span>)i);
+									<span class="c_blue">byte</span> c <span class="c_pink">=</span> (<span class="c_blue">byte</span>)(<span class="c_blue">this</span>.Buffer.Length <span class="c_pink">-</span> a);
+									c <span class="c_pink">^=</span> ch;
+									<span class="c_blue">this</span>.Buffer[i] <span class="c_pink">=</span> c;
+								}
+								<span class="c_blue">return true</span>;
+							}
+							</pre>
+							</p>
+							<h4 id="stage2">Stage 2: Pump it up</h4>
+							<p>
+							Stage 2 is a bit different. What happens here is Packet Tracer is using a library called Crypto++ to pump the buffer through a pipeline with the TwoFish filter, which basically means it is decrypting it using the TwoFish block cipher algorithm.
+							The algorithm gets invoked with a key and an initialization vector, have a look at the table below for the key/IV you need.
+							</p>
+							<p>
+							<table style="text-align:center;border-collapse: collapse;width: 100%;">
+								<tr>
+									<th style="width:15%">Action</th>
+									<th style="width:25%">File Info</th>
+									<th style="width:30%">Key</th>
+									<th style="width:30%">IV</th>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Packet Tracer Acticity <i>(.pta)</i></td>
+									<td><code>ABABABAB&#8203;ABABABAB&#8203;ABABABAB&#8203;ABABABAB</code></td>
+									<td><code>CDCDCDCD&#8203;CDCDCDCD&#8203;CDCDCDCD&#8203;CDCDCDCD</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>PKC Files <i>(.pkc)</i></td>
+									<td><code>ABABABAB&#8203;ABABABAB&#8203;ABABABAB&#8203;ABABABAB</code></td>
+									<td><code>23232323&#8203;23232323&#8203;23232323&#8203;23232323</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Log Files</td>
+									<td><code>ABABABAB&#8203;ABABABAB&#8203;ABABABAB&#8203;ABABABAB</code></td>
+									<td><code>BEBEBEBE&#8203;BEBEBEBE&#8203;BEBEBEBE&#8203;BEBEBEBE</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Log Files</td>
+									<td><code>BABABABA&#8203;BABABABA&#8203;BABABABA&#8203;BABABABA</code></td>
+									<td><code>BEBEBEBE&#8203;BEBEBEBE&#8203;BEBEBEBE&#8203;BEBEBEBE</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Packet Tracer Saves</td>
+									<td><code>89898989&#8203;89898989&#8203;89898989&#8203;89898989</code></td>
+									<td><code>10101010&#8203;10101010&#8203;10101010&#8203;10101010</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Unknown_1</td>
+									<td><code>12121212&#8203;12121212&#8203;12121212&#8203;12121212</code></td>
+									<td><code>FEFEFEFE&#8203;FEFEFEFE&#8203;FEFEFEFE&#8203;FEFEFEFE</code></td>
+								</tr>
+								<tr>
+									<td>Decrypt<br>Encrypt</td>
+									<td>Unknown_2</td>
+									<td><code>F1F1F1F1&#8203;F1F1F1F1&#8203;F1F1F1F1&#8203;F1F1F1F1</code></td>
+									<td><code>1F1F1F1F&#8203;1F1F1F1F&#8203;1F1F1F1F&#8203;1F1F1F1F</code></td>
+								</tr>
+							</table>
+							<i><br>NOTE: Extracted from PacketTracer v7.2.1</i>
+							</p>
+							<p>
+							For the code, I have forked a TwoFish C# implementation from github and used it like this:
+							</p>
+							<pre class="code_box">
+							<span class="c_blue">public bool</span> <span class="c_yellow">unpackStageTwo</span>()
+							{
+								<span class="c_green">// We use the 'Packet Tracer Saves' key, which works on .pka, .pkt and a few more I guess.</span>
+								<span class="c_blue">Twofish</span> twofish = <span class="c_blue">new</span> <span class="c_yellow">Twofish</span>()
+								{
+									Mode <span class="c_pink">=</span> System.Security.Cryptography.CipherMode.CBC,
+									Key <span class="c_pink">=</span> <span class="c_blue">new byte</span>[] { <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span>, <span class="c_purple">0x89</span> },
+									IV <span class="c_pink">=</span> <span class="c_blue">new byte</span>[] { <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span>, <span class="c_purple">0x10</span> }
+								};
+							
+								<span class="c_blue">ICryptoTransform</span> decrypt = twofish.<span class="c_yellow">CreateDecryptor</span>();
+								System.IO.<span class="c_blue">MemoryStream</span> msD <span class="c_pink">=</span> <span class="c_blue">new</span> System.IO.<span class="c_yellow">MemoryStream</span>();
+								<span class="c_blue">CryptoStream</span> cryptostreamDecr <span class="c_pink">=</span> <span class="c_blue">new</span> <span class="c_yellow">CryptoStream</span>(msD, decrypt, CryptoStreamMode.Write);
+							
+								cryptostreamDecr.<span class="c_yellow">Write</span>(<span class="c_blue">this</span>.Buffer, <span class="c_purple">0</span>, <span class="c_blue">this</span>.Buffer.Length);
+								cryptostreamDecr.<span class="c_yellow">Close</span>();
+							
+								<span class="c_blue">byte</span>[] tmp <span class="c_pink">=</span> msD.<span class="c_yellow">GetBuffer</span>();
+								<span class="c_blue">Console</span>.<span class="c_yellow">WriteLine</span>(tmp.Length);
+								<span class="c_blue">for</span> (<span class="c_blue">int</span> i <span class="c_pink">=</span> <span class="c_purple">0</span>; i <span class="c_pink">&lt;</span> <span class="c_blue">this</span>.Buffer.Length; i<span class="c_pink">++</span>)
+									<span class="c_blue">this</span>.Buffer[i] <span class="c_pink">=</span> tmp[i];
+							
+								<span class="c_blue">return true</span>;
+							}
+							</pre>
+							<h4 id="stage3">Stage 3: Another Xor</h4>
+							<p>
+							Stage 3 is located in the second yellow block that was found in the <tt>pkaUnpackContent()</tt> when we were single-step debugging.
+							Our <tt>pka_stage3_BufferDecode()</tt> function is a bit similar to stage 1 reverse XOR decoding, except this time it is not in reverse.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_stage3_loop_xor.png" alt="IDA xor loop function" width="648" height="811" />
+							</p>
+							<p>
+							Since the XOR decoding is similar to the stage1 reverse XOR decoding, I won't go into any detail.
+							Feel free to pause for a brief moment and have a good look at the yellow block where the XOR decoding happens.
+							Once again, this XOR decoding loop iterates through all bytes of the buffer, this time from start to end, and uses the length as key.
+							</p>
+							<p>
+							The below code is my C# version of the stage 3 XOR decoding, have a close look at the code to get a better understanding of what the above assembly code was doing exactly.
+							</p>
+							<p>
+							<pre class="code_box">
+							<span class="c_blue">private bool</span> <span class="c_yellow">unpackStageThree</span>()
+							{
+								<span class="c_blue">for</span> (<span class="c_blue">int</span> i <span class="c_pink">=</span> <span class="c_purple">0</span>; i <span class="c_pink">&lt;</span> <span class="c_blue">this</span>.Buffer.Length; i<span class="c_pink">++</span>)
+								{
+									<span class="c_blue">byte</span> ch <span class="c_pink">=</span> <span class="c_blue">this</span>.Buffer[i];
+									<span class="c_blue">byte</span> key <span class="c_pink">=</span> (<span class="c_blue">byte</span>)(<span class="c_blue">this</span>.Buffer.Length <span class="c_pink">-</span> i);
+									ch <span class="c_pink">^=</span> key;
+									<span class="c_blue">this</span>.Buffer[i] <span class="c_pink">=</span> ch;
+								}
+								<span class="c_blue">return true</span>;
+							}
+							</pre>
+							</p>
+							<h4 id="stage4">Stage 4: Decompressing</h4>
+							<p>
+							Okay, I am not gonna lie, I did look into the Github repository that unpacked the file format for version 5.x. The Github repo stated that the first 4 bytes of the buffer indicated the length of the unzipped content, and that zlib was used to unzip the remaining buffer. In my defense, zlib has multiple formats. So I actually had to find the magic bytes myself and check which type of zlib was used. According to <u><a href="https://en.wikipedia.org/wiki/List_of_file_signatures">this list of file signatures</a></u> from Wikipedia, I figured that my magic bytes ``78 9C`` stands for zlib 'Default Compression'.
+							</p>
+							<p>
+							After looking that up it was just a matter of googling for a C# NuGet to find a C# library that has all of the functionality I need from zlib to do the default compression. The C# function I created for <tt>unpackStageFour()</tt>, which decompresses and serializes the decompressed XML string to an object is shown below.
+							<pre class="code_box">
+							<span class="c_blue">private bool</span> <span class="c_yellow">unpackStageFour</span>()
+							{
+								<span class="c_blue">this</span>.XmlContent <span class="c_pink">=</span> <span class="c_blue">new byte</span>[(<span class="c_blue">this</span>.Buffer[<span class="c_purple">0</span>] <span class="c_pink">*</span> <span class="c_purple">0x1000000</span>) <span class="c_pink">+</span> (<span class="c_blue">this</span>.Buffer[<span class="c_purple">1</span>] <span class="c_pink">*</span> <span class="c_purple">0x10000</span>) <span class="c_pink">+</span> (<span class="c_blue">this</span>.Buffer[<span class="c_purple">2</span>] <span class="c_pink">*</span> <span class="c_purple">0x100</span>) <span class="c_pink">+</span> (<span class="c_blue">this</span>.Buffer[<span class="c_purple">3</span>] <span class="c_pink">*</span> <span class="c_purple">0x1</span>)]; <span class="c_green">// first 4 bytes are size</span>
+								<span class="c_blue">var</span> zlibdata <span class="c_pink">=</span> <span class="c_blue">this</span>.Buffer.<span class="c_yellow">ToList</span>();
+								zlibdata.<span class="c_yellow">RemoveRange</span>(<span class="c_purple">0</span>, <span class="c_purple">4</span>);
+							
+								<span class="c_green">// check for zlib 'Default Compression (no preset dictionary)'</span>
+								<span class="c_blue">if</span> (zlibdata[<span class="c_purple">0</span>] <span class="c_pink">!=</span> <span class="c_purple">0x78</span> <span class="c_pink">&&</span> zlibdata[<span class="c_purple">1</span>] <span class="c_pink">!=</span> <span class="c_purple">0x9C</span>)
+									<span class="c_blue">return false</span>; <span class="c_green">// invalid header - https://en.wikipedia.org/wiki/List_of_file_signatures</span>
+							
+								InflaterInputStream inflate = <span class="c_blue">new</span> InflaterInputStream(<span class="c_blue">new</span> MemoryStream(zlibdata.<span class="c_yellow">ToArray</span>()));
+								inflate.<span class="c_yellow">Read</span>(<span class="c_blue">this</span>.XmlContent, <span class="c_purple">0</span>, <span class="c_blue">this</span>.XmlContent.Length);
+							
+								<span class="c_green">// patch invalid character 0x03</span>
+								<span class="c_blue">for</span> (<span class="c_blue">int</span> i <span class="c_pink">=</span> <span class="c_purple">0</span>; i <span class="c_pink">&lt;</span> <span class="c_blue">this</span>.XmlContent.Length; i<span class="c_pink">++</span>)
+									<span class="c_blue">if</span> (<span class="c_blue">this</span>.XmlContent[i] <span class="c_pink">&lt;</span> <span class="c_purple">0x09</span>)
+										<span class="c_blue">this</span>.XmlContent[i] <span class="c_pink">=</span> <span class="c_purple">0x3F</span>; <span class="c_green">// ASCII questionmark</span>
+							
+								<span class="c_blue">this</span>.xmlSerializer <span class="c_pink">=</span> <span class="c_blue">new</span> XmlSerializer(<span class="c_yellow">typeof</span>(PACKETTRACER5_ACTIVITY));
+								<span class="c_blue">this</span>.Content <span class="c_pink">=</span> (PACKETTRACER5_ACTIVITY)<span class="c_blue">this</span>.xmlSerializer.<span class="c_yellow">Deserialize</span>(<span class="c_blue">new</span> MemoryStream(<span class="c_blue">this</span>.XmlContent));
+								<span class="c_blue">return true</span>;
+							}
+							</pre>
+							<i>Also note that I 'patch invalid character 0x03' since  the C# <tt>XmlSerializer</tt> doesn't like that character, therefore I simply replace that character with 0x3F, which is the question mark character in the ASCII table.</i>
+							</p>
+							<h3>It's an XML!</h3>
+							<p>
+							Finally, we have reached plain text, which seems to be XML. This explains why Packet Tracer was referring to the strings <tt>&lt;VERSION></tt> and <tt>&lt;/VERSION></tt> right after it successfully unpacked the file data. From now on we can use the C# functions we have made to fully unpack our original .pka files.
+							</p>
+							<h2>Custom algorithm</h2>
+							<p>
+							Now that we completely understand how Packet Tracer unpacks the .pka file type, we can start modifying the algorithm just enough to have custom .pka file versions. To keep it simple, I will simply modify stage 1 and replace the Xor key with a hardcoded key. This also means we have to re-pack our existing .pka files to convert them to our new format, I will create a tool that unpacks our existing .pka files and packs then using the slightly modified algorithm.
+							</p>
+							<h3>Patching original algorithm</h3>
+							<p>
+							Time to patch the stuff in IDA, in the image below you can see I have replaced a bunch of instructions with <tt>NOP</tt> and then pushed the XOR key <i>(0x42)</i> into the <tt>r14</tt> register. Since we hardcode the XOR key we no longer need the function calls that obtain the size of the array, this means we can clean up a little bit of space. Have a close look and you can see that I have removed a total of 37 bytes, this may not sound like a lot, but know that setting our hardcoded XOR key costs only 4 bytes. This means there is plenty of room to make a more complex XOR algorithm, but for now, let's keep it simple and stick to the hardcoded XOR key example.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/ida_stage1_custom_xor_2.png" alt="IDA custom stage 1 XOR loop" width="853" height="805"/>
+							</p>
+							<p>
+							After that's done I decided to give it a go, and... it crashed. When I start Packet Tracer, I am greeted with an error message, so I decided to throw the original Packet Tracer binary into x64dbg so I can breakpoint stage 1 of the unpacking algorithm. It turns out that the function is called at startup, I get exactly 83 hit counts on the breakpoint, which seems like Packet Tracer is unpacking 83 files at startup?
+							</p>
+							<p>
+							After analyzing the files that got unpacked I figured out that Packet Tracer uses this algorithm for more than just .pka files, basically all files with the .ptd and .pts extension that are located in the Packet Tracer directory get unpacked and loaded into memory using the same unpacking algorithm at startup.
+							This makes my job a little harder, it means we not only have to re-pack our .pka files, but also a bunch of other files that come with the installation of Packet Tracer.
+							Fear not, because <u><a href="https://github.com/ferib/PkaWizard">my set of tools</a></u> to automatically do this is located on GitHub.
+							</p>
+							<h3>Re-packing pka files</h3>
+							<p>
+							Finally, we have to re-pack our existing .pts, .ptd and .pka files.
+							When we don't convert the .pts and .ptd files that are located in the Packet Tracer directory, we get the crash I just described.
+							When a user uses a .pka file that is either, not re-packed to our current version or tries to use our re-packed .pka file in the original <i>(and more vulnerable)</i> Packet Tracer then this error will show up.
+							</p>
+							<p>
+							<img src="/img/blog/pka_not_compatible_error.png" alt="Packet Tracer incompatible error" width="516" height="125"/>
+							</p>
+							<h3>The result</h3>
+							<p>
+							You may have got a little confused with what we have done so far, therefore I created a visual representation of what I have achieved in my PoC.
+							Have a look at the image below, on the left side you will see the original flow of Packet Tracer, and on the right side is our patched version.
+							</p>
+							<p>
+							<img class="zoom" src="/img/blog/packet_tracer_packer_info.png" alt="Visual overview" width="690" height="426" />
+							</p>
+							<p>
+							The purple lines represent the following actions that come from my <u><a href="https://github.com/ferib/PkaWizard">PkaWizard toolset</a></u>:
+							<ul>
+								<li><b>Re-packing</b> functionality is used to convert an original .pka file to a custom encoded version <i>(or vise versa)</i></li>
+								<li><b>Patching</b> functionality is used to patch a custom algorithm inside an original PacketTracer binary <i>(or vise versa)</i></li>
+							</ul>
+							</p>
+							<p>
+							Last but not least, a visual demonstration of my <u><a href="https://github.com/ferib/PkaWizard">PkaWizard toolset</a></u>.
+							</p>
+							<p>
+							<iframe width="100%" height="315" src="https://www.youtube.com/embed/kkV7KALfd8E" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+							<ul>
+								<li>00:04 - Original Packet Tracer using original file while opening original .pka</li>
+								<li>00:25 - Patched Packet Tracer using original files</li>
+								<li>00:44 - Patched Packet Tracer using patched files</li>
+								<li>00:52 - Patched Packet Tracer opening  original .pka</li>
+								<li>01:14 - Patched Packet Tracer opening  custom .pka</li>
+							</ul>
+							</p>
+							<h2>Conclusion</h2>
+							<p>
+							Nothing is 100% secure, especially when it is all client-side on a device that is not owned by you. The best way to prevent fraud using such tools is to update the software frequently, making it more time consuming for others to break it. Reversing the whole unpacking tool took me about 10 hours of works, which, may not sound that bad, but do know that people with such a skillset are charging over 100$ hourly rates. But yeah, I am just a bored college student that got a few extra months of vacation, waiting for the new school year to begin ;).
+							</p>
+							<h2>Download</h2>
+							<p>
+							For those who didn't find a link yet, here is the GitHub link to my <u><a href="https://github.com/ferib/PkaWizard">PkaWizard project</a></u>.<br>
+							<i>Consider giving a star to pump my dopamine levels for a split second!</i>
+							</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

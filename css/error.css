@@ -1,0 +1,24 @@
+body {
+    font-family: 'Abel', sans-serif;
+    background: url("/img/illegal.jpg") no-repeat bottom;
+    width: 800px;
+    margin: auto;
+    height: 600px;
+    position: center;
+}
+p{
+    font-size: 37px;
+}
+
+@media screen and (max-width: 800px) {
+    p{
+        font-size: 18px;
+        color: aliceblue;
+    }
+    body{
+        height: 190px;
+        background: url("/img/illegal_detail.jpg") no-repeat bottom right;
+        background-color: #3d3f3a;
+        width: auto;
+    }
+}

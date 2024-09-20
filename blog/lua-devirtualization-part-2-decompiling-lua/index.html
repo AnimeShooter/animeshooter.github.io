@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all">
+	</head>
+	<body>
+		<div class="container">
+			<div class="content">
+				<img id="main-logo" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div class="fancy-box readability">
+				<article>
+					<header>
+					<h1>Lua Devirtualization Part 2: Decompiling Lua <span class="blogpost-date">01/05/2021</span></h1>
+					<p>
+					For this article I will start by taking a deep look into Lua 5.1 and then continue to create a Lua Decompiler from scratch in C#, not only will this be used to decompiler Lua, but it will also be used to identify and lift the Luraph instructions back to original Lua instructions <i>(in Part 3)</i>.
+					</p>
+					</header>
+					<p>
+					Please note that you do NOT need to read the previous article to understand this one, this article will only focus on the Lua VM and my very own Lua Decompiler.
+					</p>
+					<p>
+					This article is part 2 of 4, you can find a complete overview of all the articles below:
+						<ul>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-1-introduction">Part 1: Introduction</a></u></li>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua">Part 2: Decompiling Lua</a></u></li>
+						
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u></li>
+						<!-- PLEASE NO TOUCH, THANK YOU
+						 	<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-4-custom-virtualization">Part 4: Custom Obfuscation</a></u></li>
+						-->
+						</ul>
+						<br/>
+					</p>
+					<h2>Lua Compiled</h2>
+					<p>
+						During the compilation process, most of the original data gets lost.
+						Programming languages that compile to virtual bytecode are designed for a virtual run-time environment, those languages are often called scripting languages.
+						Most scripting languages like Lua, Python, Java, Javascript, and so on can be compiled to a virtual instruction set (aka virtual bytecode). 
+						Our goal for today is to turn Lua's virtual instructions back into human-readable code.
+					</p>
+					<h3>Lua Functions</h3>
+					<p>
+						Compiled Lua binaries are a collection of one or more Lua Functions, every Lua Function is made out of the following components:
+						<ul>
+							<li>Instructions</li>
+							<li>Upvalues</li>
+							<li>Constants</li>
+							<li>Debugging Info</li>
+						</ul>
+						Each of those will be explained in more detail.
+					</p>
+					<h4>Lua Instructions</h4>
+					<p>
+						Each Lua Function of course comes with a collection of instructions, these instructions are what we referred to as Lua Bytecodes.
+						The instructions are specific to the Lua VM, and since this article is all about Lua version 5.1, we will continue to work with Lua 5.1 for the decompiler.
+						The Lua instructions themselves are 4 bytes in size and contain the bytecode identifier (opcode) together with the value of registers <code>A</code>, <code>B</code>, and <code>C</code>.
+					</p>
+					<p>
+						Lua bytecodes are disassembled using the following snippet (<u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Core/LuaInstruction.cs"><code>src/Core/LuaInstruction.cs:136</code></a></u>):
+						<pre class="code_box"><span class="c_blue">public</span> <span class="c_yellow">LuaInstruction</span>(<span class="c_blue">int</span> data)
+{
+    OpCode <span class="c_pink">=</span> (<span class="c_blue">LuaOpcode</span>)(data <span class="c_pink">&amp;</span> <span class="c_purple">0x3F</span>);
+    A <span class="c_pink">=</span> (data <span class="c_pink">>></span> <span class="c_purple">6</span>) <span class="c_pink">&amp;</span> <span class="c_purple">0xFF</span>;
+    B <span class="c_pink">=</span> (data <span class="c_pink">>></span> <span class="c_purple">23</span>) <span class="c_pink">&amp;</span> <span class="c_purple">0x1FF</span>;
+    C <span class="c_pink">=</span> (data <span class="c_pink">>></span> <span class="c_purple">14</span>) <span class="c_pink">&amp;</span> <span class="c_purple">0x1FF</span>;
+}</pre>
+					</p>
+					<h4>Lua Upvalues</h4>
+					<p>
+						Upvalues are commonly used to reference a local variable between multiple functions. These upvalues make it possible for a parent function to pass a reference to a local variable to one of their child functions.
+						This may be a little bit tricky to understand, but it will become more clear when we get to the actual decompiling of the upvalues.
+					</p>
+					<h4>Lua Constants</h4>
+					<p>
+						Each Lua Function has an array of Lua Constants. Lua Constants are basiclly Objects in Lua, they can be a String, a Number <i>(Float/Double)</i>, or just null. The number is either a float or a double depending on the compiler settings.
+						This array of constants is saved inside the compiled Lua binary and will be accessed during runtime.
+					</p>
+					<h4>Debugging Info</h4>
+					<p>
+						Remember how compilers lose information when they compile files? Lua has a 'solution' for this, by default, Lua compilers will add additional data that is not necessary for the runtime environment but instead is used for us, humans, to help us debug our scripts when needed.
+						This debugging information exists of local variable names, upvalues, and even line numbers. 
+						Debugging information will most likely not be present in virtualized scripts such as Luraph because the debugging info is not required for the run-time environment.
+						Therefore I will not go into more detail nor will I support this in the decompiler (at the time of writing).
+					</p>
+					<h3>Lua VM</h3>
+					<p>
+						The Lua VM is the piece of software that is responsible for interpreting Lua bytecodes while also handling the memory. This piece of software can be found on <u><a href="https://github.com/lua/lua">GitHub (mirror)</a></u> or somewhere on the official <u><a href="https://lua.org/">lua.org</a></u> website.
+						Maybe I should mention that the official Lua website is at lua.org, but I assume most people are familiar with GitHub, so my preference is the GitHub mirror.
+					</p>
+					<h4>VM in a nutshell</h4>
+					<p>
+						Since the complete Lua VM is a little out of scope for this article, I will just sum up a few basic things we need to know before we continue.
+						The VM has 3 main registers, <code>A</code>, <code>B</code>, and <code>C</code>. Register <code>A</code> is 8-bit while registers <code>B</code> and <code>C</code> are 9-bits. Register <code>B</code> and <code>C</code> are combined to form the 18-bit register <code>Bx</code>.
+						The final register is <code>sBx</code>, which is just a signed interpretation of the 18-bit register <code>Bx</code>.
+					</p>
+					<p>
+						One important thing to know is the usage of registers <code>B</code> and <code>C</code>, they are both 9-bit long while register <code>A</code> is only 8-bit long.
+						This is done for the reason that registers <code>B</code> and <code>C</code> are often used to reference a Lua Constant, this is done by setting the most significant bit.
+						Lucky for <code>A</code>, Lua instructions only use a maximum of 2 constants at a time, so register <code>A</code> shouldn't have to worry about his small size ;).
+					</p>
+					<p>
+						Another important fact you may want to know is that the <code>sBx</code> register is only used in the <code>JMP</code> instruction, because the only time Lua may need a negative number is whenever it performs a branch/jump.
+					</p>
+					<h2>Decoding</h2>
+					<p>
+					Before we can start decompiling we must first get a better understanding of what each Lua instruction represents.
+					Each Lua instruction is unique and has its own logic, to give you an idea of how they work I will start with explaining a few common Lua instructions.
+					</p>
+					<h3>Example Instructions</h3>
+					<p>
+					<pre class="code_box">MOVE 1 0</pre>
+					The first thing you notice is that there are only two numbers after the instruction, and that is because the <code>MOVE</code> instruction only uses registers <code>A</code> and <code>B</code>.
+					To have an overview of all the Lua bytecode you can take a look at the Lua's <u><a href="https://github.com/lua/lua/blob/master/lopcodes.h#L196"><code>lopcodes.h</code></a></u> on GitHub (mirror).
+					Not only do we know which registers the <code>MOVE</code> uses, but also what it should be doing.
+					For the <code>MOVE</code> instruction it is <code>R[A] := R[B]</code>, which means that it moves the value of register <code>B</code> into register <code>A</code>, meaning that <code>MOVE 1 0</code> is just <code>var1 = var0</code>.
+					</p>
+					<p>
+					Believe it or now but we have almost decompiled that <code>MOVE</code> instruction. The only thing that is missing is that we may need to prepend the <code>local</code> keyword for the first variable to indicate that <code>var1</code> is a local variable that has not yet been used.
+					And there we go, our first instruction, <code>MOVE</code> can be decompiled like that.
+					But unfortunately not every instruction is as easy as the <code>MOVE</code> instruction, lets take a look at the <code>CALL</code> for example.
+					<pre class="code_box">OP_CALL,/*	A B C	R[A], ... ,R[A+C-2] := R[A](R[A+1], ... ,R[A+B-1]) */</pre>
+					Opcode <code>CALL</code> uses registers <code>A</code>, <code>B</code> and <code>C</code> in a more complex way, but fear not, it's actually pretty simple once you understand what is going on.
+					To explain this one, I will start by throwing an example at your face.
+					</p>
+					<p>
+					<pre class="code_box">
+CALL 1, 3, 9 // A B C -- TODO: fix those numbers bro
+var1<span class="c_yellow">,</span> var2 <span class="c_yellow">=</span> var3<span class="c_yellow">(</span>var4<span class="c_yellow">,</span> var5<span class="c_yellow">,</span> var6<span class="c_yellow">)</pre>
+					Take a good look and try to understand how those numbers related to their variables... go ahead, I will wait...
+					</p>
+					<p>
+					Figured it out? it should not be too hard to see the relation between the variables and the register values.
+					First of all, we need to know that there are two sections, the first one is the return values and the second one is the arguments.
+					Register C will indicate whether there are return values or not, the amount of return variables is defined by C while the start index of the return variables is defined by A.
+
+					Section two, the arguments, .. 
+					
+					Section three, which, isn't much of a section, is just the name of the function. the name of the function is defined by register A, the function reference is always passed into the variable before it gets called.
+					Another thing you may have noticed is that the return variables and the arguments are all next to each other, which makes sense because Lua only has three main registers.
+					</p>
+					<p>
+					Before you lose your shit, keep in mind that that the vast majority of the Lua instructions are pretty basic, the <code>JMP</code> instruction for example doesn't even have to be decompiled at all.
+					Of course, we have to figure out where it will jump to, but the <code>JMP</code> instruction itself does not represent any code since Lua doesn't have 'goto' labels or whatever.
+					The only tricky part here is that we do need to know where they jump to so that we can define the execution flow of the program, but that's for later on.
+					</p>
+					<p>
+					Before we move on to decompiling I need to show you one last example that is critical in Lua.
+					As you may have noticed with the <code>MOVE</code> instruction, it will only pass the value from one variable to another, so now the real question is, how do we get a value inside a variable?
+					Loading a value into a variable is done by using the instruction <code>LOADK</code>, which stands for 'load constant', meaning that it will load a value from the lua constant list.
+					The <code>LOADK</code> does this <code>OP_LOADK,/*	A Bx	R[A] := K[Bx] */</code>, you will notice that register Bx is used, this is done because Lua constants are accessed by setting the 9th bit of the register.
+					For example, <code>Bx = 5 (0000 0000 0101)</code> means <code>var5</code> while <code>Bx = 261 (0001 0000 0101)</code> means Lua constant with index 5. Keep this one in mind because when dealing with if-statements we must identify if the Bx register is either referred to as variable or a constant.
+					</p>
+					<p>
+					<b>Before you continue</b> (TL;DR), I would like to show you how my decompiler handles such constants and variables. The function <code>WriteIndex</code> will take care of this by checking if the 9th bit is set to determine if the register is referring to a constant or not.
+					Another thing the function does is prepend the keyword <code>local</code> in case the local variable has not yet been seen before.
+					Function <code>WriteIndex</code> can be found at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptLine.cs#L471"><code>src/Decompiler/LuaScriptLine.cs:471</code></a></u> and is shown below.
+					<pre class="code_box"><span class="c_blue">public string</span> <span class="c_yellow">WriteIndex</span>(<span class="c_blue">int</span> value, <span class="c_blue">bool</span> useLocalKeyword <span class="c_pink">=</span> <span class="c_blue">true</span>)
+{
+    <span class="c_blue">bool</span> constant <span class="c_pink">=</span> <span class="c_blue">false</span>;
+    <span class="c_blue">int</span> index <span class="c_pink">=</span> <span class="c_yellow">ToIndex</span>(value, <span class="c_blue">out</span> constant);
+
+    <span class="c_blue">if</span> (constant)
+        <span class="c_blue">return</span> <span class="c_blue">this</span>.Func.Constants[index].<span class="c_yellow">ToString</span>();
+    <span class="c_blue">else</span>
+    {
+        <span class="c_blue">if</span>(<span class="c_blue">this</span>.Func.ScriptFunction.UsedLocals.<span class="c_yellow">Contains</span>(value))
+            <span class="c_blue">return</span> <span class="c_yellow">"var"</span> <span class="c_pink">+</span> index;
+        <span class="c_blue">else</span>
+        {
+            <span class="c_blue">this</span>.Func.ScriptFunction.UsedLocals.<span class="c_yellow">Add</span>(value);
+            <span class="c_blue">if</span> (useLocalKeyword)
+                <span class="c_blue">return</span> <span class="c_yellow">"local var"</span> <span class="c_pink">+</span> index;
+            <span class="c_blue">else</span>
+                <span class="c_blue">return</span> <span class="c_yellow">"var"</span> <span class="c_pink">+</span> index;
+        }
+    }
+}
+
+<span class="c_blue">public int</span> <span class="c_yellow">ToIndex</span>(<span class="c_blue">int</span> value, <span class="c_blue">out bool</span> isConstant)
+{
+    <span class="c_blue">if</span> (isConstant <span class="c_pink">=</span> (value <span class="c_pink">&amp;</span> <span class="c_purple">1</span> <span class="c_pink">&lt;&lt;</span> <span class="c_purple">8</span>) <span class="c_pink">!=</span> <span class="c_purple">0</span>)
+        <span class="c_blue">return</span> value <span class="c_pink">&amp;</span> <span class="c_pink">~</span>(<span class="c_purple">1</span> <span class="c_pink">&lt;&lt;</span> <span class="c_purple">8</span>);
+    <span class="c_blue">else</span>
+        <span class="c_blue">return</span> value;
+}</pre>
+					</p>
+					<h3>More Instructions</h3>
+					<p>
+					Let's not forget that the Lua 5.1 instruction set contains a total of 38 Lua instructions, so you may want to check out how my decompiler handles all of them.
+					My decompiler uses a big switch table at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptLine.cs#L67"><code>src/Decompiler/LuaScriptLine.cs:67</code></a></u> to decompiler each instruction individually and attempts to generate a premature output.
+					Just keep in mind that this is a very premature output, the output will, later on, be improved by analyzing on a few higher levels.
+					</p>
+					<h2>Decompiling</h2>
+					<p>
+					We have already managed to perform a very pre-mature decompiling based on the instruction level which we will be using in the next few levels.
+					The next two analyses are going to be done in Block level and Function level, this means we will no longer look at a single instruction at a time, but instead, look at a collection of instructions to get a better idea of what it's doing.
+					</p>
+					<h2>Blocks</h2>
+					<p>
+					One of the important things to do is group our Lua instructions into smaller groups, we will split the instructions whenever we see branch instructions.
+					This is important because every branch instruction means that the control flow can change. From now, I will use the word 'Block' to refer to such groups of instructions.
+					</p>
+					<p>
+					Once the blocks are split based on the branch instruction, we will iterate them again and split them once more whenever a block jumps to a location that is not the start address of a block.
+					This is often the case with if statements, the block will, later on, be used to define the end of the given if statement (or loop).
+					</p>
+					<h3>Defining our blocks</h3>
+					<p>
+					Most blocks are pretty similar, they all contain Lua instruction that they will execute, but in the end, there are usually (not always!) two instructions we need to keep track of.
+					One of them is the branch instruction (<code>JMP</code>) that we talked about previously, and the other one is the condition instruction (<code>IF</code>-statement).
+					</p>
+					<p>
+					The condition instruction will usually decide whether or not to jump <b>over</b> a branch instruction or not. even tho a condition instruction DOES modify the instruction pointer,
+					we will not keep track of that because condition instructions are only capable of increasing the instruction pointer by one, meaning that a condition instruction is almost always placed
+					before a branch instruction. A branch instruction will then modify the instruction pointer to change the flow of the execution.
+					This may be a little trick, but the reason Lua handles conditions like this is that there simply are no flag registers that the Lua VM can use to save the result of a condition.
+					</p>
+					<p>
+					The decompiler uses the <code>GenerateBlocks</code> function at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptFunction.cs#L141"><code>src/Decompiler/LuaScriptFunction.cs:141</code></a></u> to create a list of blocks based on the existing list of Lua instructions.
+					All blocks have the property <code>JumpTo</code> to indicate where the branch instructions jump to (if any), and another property called <code>JumpNext</code> which is just the address of the next block (if any).
+					</p>
+					<h4>Block Graph</h4>
+					<p>
+					For shit and giggles, I have forked the graph view from my <u><a href="https://github.com/ferib/U8Disasm/tree/master">U8Disasm project</a></u> and implemented it for our Lua decompiler.
+					</p>
+					<p>
+					<img src="../../img/blog/luao_graph.png" width="787" height="720" class="zoom"/>
+					</p>
+					<p>
+					The results are... questionable, but at least you can see the blocks I have been talking about.
+					On the left side are the Lua instructions while on the right side is the decompiled output <i>(final result)</i>.
+					</p>
+					<p>
+					<i>NOTE: Please note that the output in the screenshot is from a very early stage of the decompiler.</i>
+					</p>
+					<h3>Block Definitions</h3>
+					<p>
+					We iterate over all blocks using the logic found at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptFunction.cs#L251"><code>src/Decompiler/LuaScriptFunction.cs:251</code></a></u>.
+					The blocks are split into 4 different categories, each block category is defined based on their <code>JumpTo</code> and <code>JumpNext</code> values, have a look at the rules below:
+					</p>
+					<p>
+					<ul>
+						<li><code>IF</code> = <code>JumpTo != -1 &amp;&amp; JumpNext != -1</code>*</li>
+						<li><code>ELSE</code> = <code>JumpTo != -1 &amp;&amp; JumpNext == -1</code></li>
+						<li><code>ENDIF</code> = <code>JumpTo == -1 &amp;&amp; JumpNext != -1</code></li>
+						<li><code>END</code> = <code>JumpTo == -1 &amp;&amp; JumpNext == -1</code></li>
+					</ul>
+					<i>*The <code>IF</code> block must have a condition instruction and must NOT have opcode <code>FORLOOP</code>.</i>
+					</p>
+					<p>
+					<code>IF</code> blocks can decide where they jump to based on their condition while <code>ELSE</code> blocks don't have much to decide, instead, they just jump to the end of the <code>IF</code> statement to prevent the execution of the next block, which, presumably is the second body of the <code>IF</code> statement.
+					The <code>ENDIF</code> block is the exact opposite of the <code>ELSE</code> block, here the <code>ENDIF</code> block won't have the possibility to jump, instead, it will just continue the execution because it has passed the <code>IF</code> code body already.
+					Finally, the <code>END</code> block is just.. the end. There are no more instructions left after that block meaning that we have reached the end of the Lua function.
+					</p>
+					<p>
+					<img src="../../img/blog/luao_blocks_ide.png" width="363" height="215" />
+					</p>
+					<p>
+					Have a quick look at the above screenshot, the yellow highlighted are <code>IF</code> blocks, blue for <code>ELSE</code> blocks, purple for <code>ENDIF</code>, and brown for <code>END</code>.
+					But there is one thing we are missing, and thats multi-line <code>IF</code> statements.
+					</p>
+					<h3>Combined If Statements</h3>
+					<p>
+					Multi-line if statements are a pain in the ass, the block definitions look promising, but there is one thing we are missing.
+					We do not yet know how the <code>IF</code> blocks relate to each other. For example, there could be 5 different <code>IF</code> statements, or there could be just 1 big <code>IF</code> statement with 5 conditions.
+					Let me show you the original Lua script that was used to generate the output of the colored blocks, I will highlight the below code based on its block color. 
+					<pre class="code_box"><span class="block_1" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;"> <span class="c_yellow">local function</span> getSqSegDist<span class="c_yellow">(</span>pv<span class="c_yellow">,</span> p1<span class="c_yellow">,</span> p2<span class="c_yellow">)</span> 
+     <span class="c_yellow">local</span> x <span class="c_yellow">=</span> p1.x 
+     <span class="c_yellow">local</span> y <span class="c_yellow">=</span> p1.y 
+     <span class="c_yellow">local</span> z <span class="c_yellow">=</span> p1.z 
+     <span class="c_yellow">local</span> dx <span class="c_yellow">=</span> p2.x <span class="c_yellow">-</span> x 
+     <span class="c_yellow">local</span> dy <span class="c_yellow">=</span> p2.y <span class="c_yellow">-</span> y 
+     <span class="c_yellow">local</span> dz <span class="c_yellow">=</span> p2.z <span class="c_yellow">-</span> z 
+     <span class="c_yellow">if</span> dx ~= <span class="c_purple">0</span> <span class="c_yellow">or</span></span><span class="block_2" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;"> dy <span class="c_yellow">~=</span> <span class="c_purple">0</span> <span class="c_yellow">and</span></span><span class="block_3" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;"> x <span class="c_yellow">==</span> p1.x <span class="c_yellow">and</span></span><span class="block_4" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;"> dz <span class="c_yellow">~=</span> <span class="c_purple">0</span> <span class="c_yellow">then</span> </span> <span class="c_green">-- Blocks 0 to 3</span>
+<span class="block_5" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;">         <span class="c_yellow">local</span> t <span class="c_yellow">= ((</span>p.x <span class="c_yellow">-</span> x<span class="c_yellow">) *</span> dx <span class="c_yellow">+ (</span>p.y <span class="c_yellow">-</span> y<span class="c_yellow">) *</span> dy <span class="c_yellow">+ (</span>p.z <span class="c_yellow">-</span> z<span class="c_yellow">) *</span> dz<span class="c_yellow">) / (</span>dx <span class="c_yellow">*</span> dx <span class="c_yellow">+</span> dy <span class="c_yellow">*</span> dy <span class="c_yellow">+</span> dz <span class="c_yellow">*</span> dz<span class="c_yellow">)</span> 
+         <span class="c_yellow">if</span> t <span class="c_yellow">></span> <span class="c_purple">1</span> <span class="c_yellow">then</span> </span> <span class="c_green">-- Block 4</span>
+<span class="block_6" style="background-color: #0094FF1f; outline: 1px solid #9e9e9e;">             x <span class="c_yellow">=</span> p2.x 
+             y <span class="c_yellow">=</span> p2.y 
+             z <span class="c_yellow">=</span> p2.z 
+         <span class="c_yellow">else</span></span><span class="block_6" style="background-color: #bec1001f; outline: 1px solid #9e9e9e;"><span class="c_yellow">if</span> t <span class="c_yellow">></span> <span class="c_purple">0</span> <span class="c_yellow">then</span> </span> <span class="c_green">-- Block 6</span>
+<span class="block_8" style="background-color: #8002841f; outline: 1px solid #9e9e9e;">             x <span class="c_yellow">=</span> x <span class="c_yellow">+</span> dx <span class="c_yellow">*</span> t 
+             y <span class="c_yellow">=</span> y <span class="c_yellow">+</span> dy <span class="c_yellow">*</span> t 
+             z <span class="c_yellow">=</span> z <span class="c_yellow">+</span> dz <span class="c_yellow">*</span> t 
+         <span class="c_yellow">end</span> 
+     <span class="c_yellow">end</span> </span>
+<span class="block_8" style="background-color: #8416051f; outline: 1px solid #9e9e9e;">     dx <span class="c_yellow">=</span> p.x <span class="c_yellow">-</span> x 
+     dy <span class="c_yellow">=</span> p.y <span class="c_yellow">-</span> y 
+     dz <span class="c_yellow">=</span> p.z <span class="c_yellow">-</span> z 
+     <span class="c_yellow">return</span> dx <span class="c_yellow">*</span> dx <span class="c_yellow">+</span> dy <span class="c_yellow">*</span> dy <span class="c_yellow">+</span> dz <span class="c_yellow">*</span> dz 
+ <span class="c_yellow">end</span> </span></pre>
+					</p>
+					<p>
+					Hopefully, you can see the boundaries of the blocks, you should be able to see that the first <code>IF</code> statement is combined from blocks 0 to 3, the next <code>IF</code> statement is a single condition from block 4, and the final <code>IF</code> statement is an <code>ELSE</code><code>IF</code> statement from block 6.
+					</p>
+					<p>
+					To figure out if two or more <code>IF</code> blocks that are located next to each other are the same <code>IF</code> statement we have to check their end location.
+					The decompiler takes care of this at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptFunction.cs#L270"><code>src/Decompiler/LuaScriptFunction.cs:270</code></a></u> by locating the last <code>IF</code> in the <code>IF</code> chain.
+					So in our case, that would have been block 4 for the first chain.
+					</p>
+					<p>
+					The decompiler starts at block 4 and then returns to the start of the if chain (block 0), while iterating over the <code>IF</code> blocks, it will check the <code>JumpTo</code> location because every last <code>IF</code> will jump to the <code>END</code> of their <code>IF</code>-block.
+					This way we know the <code>END</code> of the last <code>IF</code> block and can now check the <code>IF</code> block (3) that comes before the last <code>IF</code> block (4).
+					In our example, block 3 will not jump to the same <code>END</code> location as block 4, meaning that block 3 is no longer a part of the current <code>IF</code> chain, therefore we have to detect a new <code>IF</code> chain.
+					The other few blocks (2, 1, and 0) will jump to the same <code>END</code> location as block 3, meaning that blocks 3, 2, 1, and 0 are located inside the same <code>IF</code> chain.
+					</p>
+					<p>
+					Another fun brain teaser is the determination of the keyword <code>and</code> and <code>or</code>, combine this with the fact that Lua has a "reverse" flag.
+					Since Lua has a very limited amount of instructions, Lua can "reverse" the state of a condition instruction.
+					For example, Lua has the instruction <code>EQ</code> which stands for "Equal" which means <code>if X == Y</code>, but Lua has no instruction for not-equal.
+					Therefore Lua uses the same <code>EQ</code> instruction, but instead, it will set the register <code>A</code> to reverse that state, meaning that the <code>EQ</code> opcode with register <code>A == 1</code> means <code>if X ~= Y</code>.
+					</p>
+					<p>
+					But no worrys about that, the decompiler again checks the <code>JumpTo</code> value of the block to identify whether or not to use the <code>and</code> or <code>or</code> keyword.
+					For those who really want to lose their mind, have a look at <u><a href="https://github.com/ferib/LuaToolkit/blob/blogpost/src/Decompiler/LuaScriptFunction.cs#L310"><code>src/Decompiler/LuaScriptFunction.cs:310</code></a></u>.
+					Please note that this algorithm has only been tested on a limited amount of Lua code snippets and that it may break in unexpected situations.
+					</p>
+					<h2>Result</h2>
+					<p>
+					Compiler input:
+					</p>
+					<p>
+					<pre class="code_box"><span class="c_yellow">local</span> up1 <span class="c_yellow">=</span> <span class="c_pink">"up1"</span>
+<span class="c_yellow">local</span> up2 <span class="c_yellow">=</span> <span class="c_pink">"up2"</span>
+
+<span class="c_yellow">local function</span> test1<span class="c_yellow">(</span>a<span class="c_yellow">,</span> b<span class="c_yellow">,</span> x<span class="c_yellow">,</span> y<span class="c_yellow">)</span>
+    <span class="c_yellow">if</span> b <span class="c_yellow">==</span> x <span class="c_yellow">then</span>
+        <span class="c_yellow">if</span> a <span class="c_yellow">==</span> <span class="c_purple">0</span> <span class="c_yellow">and</span> b <span class="c_yellow">~=</span> <span class="c_purple">1</span> <span class="c_yellow">or</span> x <span class="c_yellow">==</span> <span class="c_purple">99</span> <span class="c_yellow">and</span> y <span class="c_yellow">~=</span> <span class="c_purple">0</span> <span class="c_yellow">then</span>
+            print<span class="c_yellow">(</span><span class="c_pink">"check 1"</span><span class="c_yellow">)</span>
+            <span class="c_yellow">if</span> x <span class="c_yellow">></span> <span class="c_purple">0</span> <span class="c_yellow">then</span>
+                print<span class="c_yellow">(</span><span class="c_pink">"check 2"</span><span class="c_yellow">)</span>
+            <span class="c_yellow">else</span>
+                print<span class="c_yellow">(</span><span class="c_pink">"nope"</span><span class="c_yellow">)</span>
+            <span class="c_yellow">end</span>
+            x <span class="c_yellow">=</span> b
+        <span class="c_yellow">end</span>
+        print<span class="c_yellow">(</span><span class="c_pink">"done"</span><span class="c_yellow">)</span>
+    <span class="c_yellow">end</span>
+    
+    <span class="c_yellow">function</span> intest<span class="c_yellow">()</span>
+        print<span class="c_yellow">(</span><span class="c_pink">"upvalues check: "</span> <span class="c_yellow">..</span> up1 <span class="c_yellow">..</span> up2<span class="c_yellow">)</span>
+    <span class="c_yellow">end</span>
+<span class="c_yellow">end</span></pre></p>
+					<p>
+					Decompiled output:
+					</p>
+					<p>
+					<pre class="code_box">function CRoot()
+local var0 = <span class="c_pink">"up1"</span>
+local var1 = <span class="c_pink">"up2"</span>
+    local function unknown0(var0, var1, var2, var3)
+        if var1 == var2 then
+            if var0 == 0 and var1 ~= 1 or var2 == 99 and var3 ~= 0 then 
+                local var4 = _G[<span class="c_pink">"print"</span>]
+                local var5 = <span class="c_pink">"check 1"</span>
+                var4(var5)
+                if 0 &lt; var2 then
+                    var4 = _G[<span class="c_pink">"print"</span>]
+                    var5 = <span class="c_pink">"check 2"</span>
+                    var4(var5)
+                else
+                    var4 = _G[<span class="c_pink">"print"</span>]
+                    var5 = <span class="c_pink">"nope"</span>
+                    var4(var5)
+                end
+            var2 = var1
+            end
+        var4 = _G[<span class="c_pink">"print"</span>]
+        var5 = <span class="c_pink">"done"</span>
+        var4(var5)
+        end
+        function intest()
+            local var0 = _G[<span class="c_pink">"print"</span>]
+            local var1 = <span class="c_pink">"upvalues check: "</span>
+            local var2 = var0
+            local var3 = var1
+            var1 = var1 .. var2 .. var3
+            var0(var1)
+        <span class="c_yellow">end</span>
+        var4 <span class="c_yellow">=</span> intest
+        var0 <span class="c_yellow">=</span> <span class="c_pink">"up1"</span>
+        var0 <span class="c_yellow">=</span> <span class="c_pink">"up2"</span>
+        _G<span class="c_yellow">[</span><span class="c_pink">"intest"</span><span class="c_yellow">]</span> <span class="c_yellow">=</span> var4
+    <span class="c_yellow">end</span>
+    <span class="c_yellow">local</span> var2 <span class="c_yellow">=</span> unknown0
+    var0 <span class="c_yellow">=</span> var0
+    var0 <span class="c_yellow">=</span> var1
+<span class="c_yellow">end</span>
+					</pre>
+					</p>
+					<p>
+					We can see that the output is not exactly the same as the input, and that is thanks to the Lua compiler.
+					But that doesn't mean the results are wrong, in fact, the output should give the same functionality as the input.
+					To improve the decompiled output, we could try to optimize a few things, for example, take a look at the instructions below:
+					<pre class="code_box"><span class="c_yellow">function</span> intest<span class="c_yellow">()</span>
+    <span class="c_yellow">local</span> var0 <span class="c_yellow">=</span> _G<span class="c_yellow">[</span>"print"<span class="c_yellow">]</span>
+    <span class="c_yellow">local</span> var1 <span class="c_yellow">=</span> <span class="c_pink">"upvalues check: "</span>
+    <span class="c_yellow">local</span> var2 <span class="c_yellow">=</span> var0
+    <span class="c_yellow">local</span> var3 <span class="c_yellow">=</span> var1
+    var1 <span class="c_yellow">=</span> var1 <span class="c_yellow">..</span> var2 <span class="c_yellow">..</span> var3
+    var0<span class="c_yellow">(</span>var1<span class="c_yellow">)</span>
+<span class="c_yellow">end
+					</pre>
+					Which basically means
+					<pre class="code_box"><span class="c_yellow">function</span> intest<span class="c_yellow">()</span>
+    print<span class="c_yellow">(</span><span class="c_pink">"upvalues check:"</span> <span class="c_yellow">..</span> var2 <span class="c_yellow">..</span> var3<span class="c_yellow">)</span> <span class="c_green">-- var2 &amp; var3 are upvalues</span>
+<span class="c_yellow">end</span>
+					</pre>
+					Optimization is pretty much a must-have for when we want to achieve proper deobfuscation, so we will look into that soon enough.
+					</p>
+					<p>
+					For those who didn't find the GitHub link already, the complete Lua 5.1 decompiler project can be found at <u><a href="https://github.com/ferib/LuaToolkit">ferib/LuaToolkit</a></u>.
+					</p>
+					<h3>Online Lua Decompiler</h3>
+					<p>
+					Don't have .NET environment setup? then check out the online version.<br>
+					I have hosted a demo website at <u><a href="https://lua-decompiler.ferib.dev/">lua-decompiler.ferib.dev</a></u> so everyone can use the decompiler with ease.
+					Not only can you use the easy UI, but there is also an open REST API in case you into that.
+					</p>
+					<p>
+					The complete demo website for the Lua decompiler can also be found on GitHub at <u><a href="https://github.com/ferib/LuaDecompiler-Web">ferib/LuaDecompiler-Web</a></u>.
+					</p>
+					<h2>Conclusion</h2>
+					<p>
+					We have had a detailed look at some of the most used Lua instructions and figured out how to disassemble them and performed the first step of the decompiling process. after that we continued by placing the instructions into Blocks, which we then used to perform higher-level analyses on to get a better understanding of the control flow.
+					The results of the decompiler are not perfect, but we have seen that the compiler is giving pretty decent results on basic Lua code, and I believe that we can achieve perfect results when the decompiler gets improved.
+					</p>
+					<p>
+					<!--
+					In <u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u>, I will attempt to de-virtualize the Luraph script that we have seen in the previous article and publish my findings in great detail with the goal of creating my own improved obfuscation based on wherever Luraph fails.
+					-->
+					SoonTM, I will attempt to de-virtualize the Luraph script that we have seen in the previous article and publish my findings in great detail with the goal of creating my own improved obfuscation based on wherever Luraph fails.
+					</p>
+					<p style="text-align: right">
+					<!--
+					<b>Next article: </b><u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u>
+					-->
+					<b>Next article: </b><code>coming soon</code>
+					</p>
+					<article>
+				</div>
+			</div>
+		</div>
+		
+	</body>
+</html>

@@ -1,0 +1,45 @@
+@media print {
+	* {
+		color: black !important;
+	}
+	
+	.fancy-box{
+		font-family: monospace;
+		border: none;
+	}
+	
+	a, .box-title, .box-title-red{
+		color: black !important;
+	}
+	
+	.box-text{
+		color: darkslategray !important;
+		margin-bottom: 8px;
+	}
+	
+	.fancy-filter, .FancyAdBox, .article-footer, .badge-container,
+	#img-pepe, #main-logo, footer{
+		display: none;
+	}
+	
+	.fancy-box {
+		border: 0;
+		box-shadow: none;
+	}
+	
+	body, p, .box-text, article, div {
+		background-color: white !important;
+		color: black !important;
+		font-family: monospace;
+		filter: brightness(100%);
+	}
+	
+	.container{
+		width: auto;
+	}
+	
+	.post-content{
+		margin: auto;
+	}
+	
+}

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<h1>Bypassing Programs's Read-Only Code Protection (crc32)</h1>
+						<script>
+						var msg = "After being reached out to by Activision Blizzard, Inc. I have decided to remove this article.\r\n\r\nThank you for your understanding.\r\n\r\n"
+						document.getElementsByClassName("fancy-box")[0].innerText=msg;
+						</script>
+						<p>
+						Games often have neat anti-cheating system that prevents hackers from rewriting its codebase. 
+						Some games remap themself when it gets started and then puts protections in action.
+						Inside the game's code are CRC32 integrity checks that scan memory regions (including the .text section of the game) to check whether the code has been modified.
+						</p>
+						<p>
+						You should not be able to write to the game module in the first place because it's page protection is set to Execute/Read Only. You can, of course, remap the game and change page protection to Read/Write/Execute, but then the integrity checks (crc32) will detect the modification and the game will crash.
+						This whole crc32 integrity check is a big deal, we can no longer make use of software breakpoints, detours, changing constants (.rdata is Read-only and also checked), etc for as long as this protection is in place.
+						Today I will be showing you how I have bypassed the integrity checks.
+						</p>
+						<h2>Integrity checks</h2>
+						<p>
+						In order to find them, we need to know how they look like.
+						Rumors go that the game developer was too lazy to perform the crc32 themself so they just used the CRC32 assembly instruction instead.
+						A quick google search for "x86_64 crc32" leads me to a website containing a table of all possible CRC32 instructions.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_instructions.png" width="872" height="336" alt="crc32 instruction table" /><br>
+						<i>- <a href="https://www.felixcloutier.com/x86/crc32">https://www.felixcloutier.com/x86/crc32</i></a>
+						</p>
+						<p>
+						We can use the bytes listed in the table and create a permutation used to find the CRC32 instructions in the games memory.
+						But after doing that I noticed the game only uses the last opcode shown in the table, so our pattern to find all CRC32 instructions look like this "F2 ?? 0F 38 F1 ??".
+						Below is the result using Cheat Engine, 9 CRC32 instructions have been found.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_ce_scan.png" width="550" height="368" alt="Cheat Engine crc32 scan result" />
+						</p>
+						<p>
+						And this is how they look like in the disassembler.
+						</p>
+						<p>
+						<img id="crcimg" src="../../img/blog/crc32_disassm.png" width="593" height="307" alt="Cheat Engine crc32 disassembly view" />
+						</p>
+						<h2 id="howtob">How to bypass</h2>
+						<p>
+						For the bypass, we are going to detour the original CRC32 instructions and do our own calculations.
+						The main modification we do in our calculation is that we will check what memory region is targeted so we can spoof the input when needed.
+						My goal was to bypass the game's .text location, the pseudo-code below is how my modified version of the calculation looks like.
+						</p>
+						<p>
+						<pre class="code_box">
+						<span class="c_blue">LONG</span> scanRange <span class="c_pink">=</span> rdi;&#9;&#9;<span class="c_green">// crc32 rsi,[rdi+rax*8] //NOTE: scanRange is the second register (in this case Rdi)</span>
+						<span class="c_blue">LONG</span> wowFake <span class="c_pink">=</span> wow_2.exe;&#9;<span class="c_green">// wow_2.exe is a copy of wow.exe that is mapped into memory</span>
+						&#9;&#9;&#9;&#9;<span class="c_green">// without any modification (and thus results in correct CRC32 output)</span>
+						<span class="c_blue">LONG</span> wowTextStart <span class="c_pink">=</span> <span class="c_pink">*</span>(<span class="c_blue">LONG</span><span class="c_pink">*</span>)(wow.exe<span class="c_pink">+</span><span class="c_purple">0x274</span>); 
+						<span class="c_blue">LONG</span> wowTextEnd <span class="c_pink">=</span> wowTextStart <span class="c_pink">+ *</span>(<span class="c_blue">LONG</span><span class="c_pink">*</span>)(wow.exe<span class="c_pink">+</span><span class="c_purple">0x278</span>); 
+						<span class="c_blue">if</span>(scanRange <span class="c_pink">&gt;=</span> wowTextStart <span class="c_pink">||</span> scanRange <span class="c_pink">&lt;=</span> wowTextEnd)
+						{ 
+						&#9;scanRange <span class="c_pink">-=</span> wow.exe;&#9;<span class="c_green">// Subtract scanRange by wow.exe base and</span>
+						&#9;scanRange <span class="c_pink">+=</span> wow_2.exe;&#9;<span class="c_green">// Add the base of the copy'd wow memory</span>
+						&#9;&#9;&#9;&#9;<span class="c_green">// resulting in a CRC32 call that is performed on the orginal wow memory</span>
+						} 
+						crc32();&#9;<span class="c_green">// original CRC32 instruction will be performed</span>
+						<span class="c_blue">return</span>;&#9;&#9;<span class="c_green">// return to where we got called</span>
+						</pre>
+						</p>
+						<h2>Writing some code</h2>
+						<p>
+						Alright, all we have to do is remap the game, set Read/Write/Execute flag, modify all CRC32 checks, and load a copy of the game into memory to spoof the CRC32 with.
+						Time to open up Visual Studio and start writing some code.
+						</p>
+						<p>
+						I forked my friend's remapper at <u><a href="https://github.com/Evulpes/Remap-Memory-Region">https://github.com/Evulpes/Remap-Memory-Region</a></u> and implemented the CRC32 bypass feature.
+						Oh and yes, C# is still my favorite language of choice so here is a big fuck you to the haters.
+						</p>
+						<h3>The remapping</h3>
+						<p>
+						Most of the remapping is already taken care of by the code I have forked.
+						But let's not forget that we have to map the game twice into memory so we have a legit copy of the game that we use to perform our CRC32 checks on.
+						To do that I simply allocated memory with a size equal to the size of the game module and then copied the bytes to the allocated memory.
+						</p>
+						<h3>The Bypass</h3>
+						<p>
+						After the remap is done we can start searching for the CRC32 instructions and detour them, the code below is used for that.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_scan_code.png" width="728" height="294" alt="C# byte pattern scan snippet" />
+						</p>
+						<p>
+						The <tt>AoBpattern</tt> is a byte array that should represent our pattern we used before, "F2 ?? 0F 38 F1".
+						Notice that the second byte (0x42) is not a wild mark, instead, we hardcoded that index 1 of the array is a wild mark.
+						When all other bytes match our pattern, the <tt>detourCRC</tt> function is called and the location of the CRC32 is given as argument.
+						In the <tt>detourCRC</tt> functions are two important things going on.
+						One is creating the detour and the other one is writing the code cave (pseudo code explained in <b><a href="#howtob">How to bypass</a></b>).
+						</p>
+						<h4>Writing the detour</h4>
+						<p>
+						The assembly of the detour looks like this
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_detour_code2.png" width="714" height="168" alt="C# detour code cave" />
+						</p>
+						<p>
+						We start by push rax onto the stack, this is done to save the original value of rax.
+						Then we move a QWORD into rax, this QWORD is the address to the corresponding code cave.
+						Once it's in rax, we perform a call on it and then we pop rax, this is done to restore the value that rax was holding before our detour.
+						</p>
+						<p>
+						This is pretty straight forward, but we do have to keep an eye on the register that was used to perform the call.
+						The code cave might result in a crash when rax is used in our code cave, so we may have to use another register instead.
+						Changing the register isn't that much of a pain in the ass, all we have to do is increase the byte representing that instruction.
+						You can see I have an array on line 137 that holds the location for each byte instruction using rax.
+						Some instructions might use more than a single byte, so you have to google which byte you should increase.
+						You can see the array <tt>crcDetourRegOffsets</tt> is put to use below.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_detour_register.png" width="640" height="419" alt="C# check used register snippet" />
+						</p>
+						<p>
+						First, we have to find out which registers are used before we can modify the rax used in our detour.
+						To find out which byte represents which register we could use a disassembly library, but hey, what's the fun in doing that?
+						So I decided to do everything myself to get the most fun out of this project.
+						</p>
+						<p>
+						The only instructions we care about are the CRC32, the INC and the CMP instruction that are originaly copied from the game base (<u><a href="#crcimg">as shown here</a></u>).
+						Those three instructions are located next to each other, one thing to keep in mind is that the length of the bytes used for these instructions isn't always the same.
+						We should now figure out which registers are used in those instructions so that we can find out which registers we can use in our detour/code cave without messing up.
+						</p>
+						<p>
+						After playing around in Cheat Engine I had figured out that the bytes at location 0x05, 0x09 and 0x0C (starting from the crc32 instruction) are holding register values we need to take care of.
+						For example, have a close look at line 219, this will check which register is used at the INC instruction.
+						The INC instruction uses 3 bytes, the third byte contains the value of the register, so we can just subtract the third byte by 0xC0 and obtain the index of the used register.
+						I then set a value of the boolean array <tt>(usedRegs)</tt> to true at the location of the index register as seen in the image below.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_register_check.png" width="618" height="117" alt="C# check more used registers snippet" />
+						</p>
+						<p>
+						Oh, and let's not forget to add a couple of NOP's to prevent the code cave from returning to some invalid opcodes.
+						We will use a new byte array <tt>crcDetourFixed</tt> and make it as long as the original bytes we are replacing (the length is stored in <tt>origCrcInstructionLength</tt> more details on that in a minute at <b>Writing the code cave</b>).
+						The original bytes get moved into the array, and all the extra bytes will be set to 0x90 which is the NOP (No Operation) instruction.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_detour_nop_padding.png"  width="501" height="244" alt="C# NOP padding snippet" />
+						</p>
+						<h4>Writing the code cave</h4>
+						<p>
+						For the code cave its pretty straight forward, check if the targeted memory address is at the .text section of the game, and then modify the targeted memory address to point at our copied version (aka wow_2.exe).
+						The assembly instructions of the code cave are shown below and they should do exactly what's described at <b><a href="#howtob">How to bypass</a></b>.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_bypass_codecave.png" width="1023" height="519" alt="C# crc code cave" />
+						</p>
+						<p>
+						The crc32 instructions aren't always using the same registers, and the INC and CMP instructions after it may not have the same byte length, the length may be different depending on if any of the r8 ~ r15 register is used.
+						</p>
+						<p>
+						To figure out the length of those 3 instruction I used the following code which just scans until it finds a 0x72 byte, this byte represents the start of a JB or "Jump short if below/carry" instruction.
+						This JB instruction is located right after the 3 other instruction and is two bytes long, the second byte of the JB instruction is used to determine the destination of the jump, so it's safe to assume that the first byte is static and that we can use this to identify the end of our 3 other instructions.
+						</p>
+						<p>
+						The code below is used to copy the bytes of the 3 instructions (CRC32, INC, CMP) into <tt>crcBuffer</tt> (Note that the jump instruction is also included, but we do not care about this instructions since it doesn't access any registers).
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_crc_instruction_size.png" width="844" height="197" alt="C# copy original crc snippet" />
+						</p>
+						<p>
+						Once again we have to double-check which registers are being used. Our <tt>scanRange</tt> value should be the second register from the crc32 instruction.
+						As you can see I have put an array (<tt>crcCaveRegInstructOffsets</tt>) underneath the code cave (line 169) that should represent the locations of the instructions that need to be modified.
+						The code below will show you exactly how those registers will get modified.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_codecave_calc.png" width="1052" height="216" alt="C# update register to unsude snippet" />
+						</p>
+						<p>
+						You can see that we basically copy the first and the third byte from the crc32 instruction to make sure that our <tt>scanRange</tt> variable is set correctly in the code cave.
+						Finally, we have to write a couple of QWORD's into the code cave (and one into the detour), remember that Windows is using little-endian so make sure our bytes are set in the correct order.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_write_placeholder.png" width="654" height="194" alt="C# replacing the 0xDEADBEEF snippet" />
+						</p>
+						<h4>Writing to memory</h4>
+						<p>
+						Now that both the detour and the code cave buffer are read, we have to write it to memory and we are good to go.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_wpm.png" width="914" height="168" alt="C# write memory to proces" />
+						</p>
+						<p>
+						Repeat this process for all the CRC32 instruction that we have found, complete the manual mapping and we are good to go.
+						We can now write to the game .text section without any crash.
+						</p>
+						<h2>Result</h2>
+						<p>
+						This is how our detour looks like in the disassembler.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_result_1.png" width="633" height="232" alt="Cheat Engine dissasmblie detour view" />
+						</p>
+						<p>
+						And this is how our code cave looks like in the disassembler.
+						</p>
+						<p>
+						<img src="../../img/blog/crc32_result_2.png" width="599" height="554" alt="Cheat Engine dissasmblie code cave view" />
+						</p>
+						<p>
+						Congratulations, if you are still reading it means that you made it through the whole writeup!
+						Or if you just scrolled down hoping to find a GitHub link, then scroll a little more.
+						</p>
+						<p>
+						The whole project can be found <u><a href="https://github.com/ferib/Wow-Remap-Tool">here</a></u> on github.
+						</p>
+						<h2>Conclusion</h2>
+						<p>
+						Hacking games is pretty hard these days.. it seems that hacking a stupid video game is 10 times harder compared to hacking my schools exam system (as seen in <u><a href="https://ferib.dev/blog/what-does-LockDownBrowser-really-do">this previous blogpost</a></u>).
+						</p>
+						<h2>Warning</h2>
+						<p>
+						<i>This blogpost is for educational purposes only. please do not perform any of the above actions on any game client.</i>
+						</p>
+						
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

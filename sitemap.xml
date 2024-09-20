@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset
+      xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+            http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+
+<url>
+  <loc>https://ferib.dev/</loc>
+  <lastmod>2020-02-18T16:47:53+00:00</lastmod>
+  <priority>1.00</priority>
+</url>
+
+<!-- Blog posts set higher, people (and bots) want real story's and readable conent-->
+
+<!-- NOTE: OLD CONTENT
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/How_i_woke_up_with_$5000_in_bitcoin</loc>
+  <lastmod>2020-02-19T16:07:57+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/What_does_LockDownBrowser_really_do</loc>
+  <lastmod>2020-02-19T22:07:57+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Reversing_a_Online_Webshop_for_Discounts</loc>
+  <lastmod>2020-03-01T16:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Reversing_the_McDonalds_Mobile_Application_to_get_free_food</loc>
+  <lastmod>2020-03-06T23:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Reversing_Public_Transport_Application_DeLijn</loc>
+  <lastmod>2020-03-24T20:50:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Bypassing_World_of_Warcraft_Crc32_Integrity_Checks</loc>
+  <lastmod>2020-05-13T16:22:01+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/How_I_automated_McDonalds_mobile_game_to_win_free_iphones</loc>
+  <lastmod>2020-10-01T15:27:33+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Cheating_Your_Grades_with_Cheat_Engine__The_Roast_of_Packet_Tracer</loc>
+  <lastmod>2020-10-26T23:44:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Protecting_Packet_Tracer_Myself_Because_No_One_Gives_a_Fuck</loc>
+  <lastmod>2021-02-20T21:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_1_Introduction</loc>
+  <lastmod>2021-03-21T15:24:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_2_Decompiling_Lua</loc>
+  <lastmod>2021-03-31T23:52:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Inviting_Myself_to_The_Diablo_II_Resurrected_Closed_Alpha</loc>
+  <lastmod>2021-05-04T13:41:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_3_Devirtualizing_Luraph</loc>
+  <lastmod>2022-02-24T20:56:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Reversing_Common_Obfuscation_Techniques</loc>
+  <lastmod>2022-03-14T16:49:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog.php?l=post/Bringing_Obfuscation_to_the_Bitcoin_Blockchain</loc>
+  <lastmod>2023-04-02T12:47:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+-->
+
+<url>
+  <loc>https://ferib.dev/blog/How-i-woke-up-with-$5000-in-bitcoin</loc>
+  <lastmod>2020-02-19T16:07:57+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/What-does-LockDownBrowser-really-do</loc>
+  <lastmod>2020-02-19T22:07:57+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Reversing-a-Online-Webshop-for-Discounts</loc>
+  <lastmod>2020-03-01T16:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Reversing-the-McDonalds-Mobile-Application-to-get-free-food</loc>
+  <lastmod>2020-03-06T23:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Reversing-Public-Transport-Application-DeLijn</loc>
+  <lastmod>2020-03-24T20:50:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Bypassing-World-of-Warcraft-Crc32-Integrity-Checks</loc>
+  <lastmod>2020-05-13T16:22:01+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/How-I-automated-McDonalds-mobile-game-to-win-free-iphones</loc>
+  <lastmod>2020-10-01T15:27:33+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Cheating-Your-Grades-with-Cheat-Engine--The-Roast-of-Packet-Tracer</loc>
+  <lastmod>2020-10-26T23:44:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Protecting-Packet-Tracer-Myself-Because-No-One-Gives-a-Fuck</loc>
+  <lastmod>2021-02-20T21:00:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Lua-Devirtualization-Part-1-Introduction</loc>
+  <lastmod>2021-03-21T15:24:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Lua-Devirtualization-Part-2-Decompiling-Lua</loc>
+  <lastmod>2021-03-31T23:52:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Inviting-Myself-to-The-Diablo-II-Resurrected-Closed-Alpha</loc>
+  <lastmod>2021-05-04T13:41:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Lua-Devirtualization-Part-3-Devirtualizing-Luraph</loc>
+  <lastmod>2022-02-24T20:56:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Reversing-Common-Obfuscation-Techniques</loc>
+  <lastmod>2022-03-14T16:49:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+<url>
+  <loc>https://ferib.dev/blog/Bringing-Obfuscation-to-the-Bitcoin-Blockchain</loc>
+  <lastmod>2023-04-02T12:47:00+00:00</lastmod>
+  <priority>0.95</priority>
+</url>
+
+</urlset>

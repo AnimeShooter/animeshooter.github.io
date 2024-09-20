@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+							<h1>Inviting Myself to The 'Diablo II: Resurrected' Closed Alpha <span class="blogpost-date">02/05/2021</span></h1>
+							<script>
+							var msg = "After being reached out to by Activision Blizzard, Inc. I have decided to remove this article.\r\n\r\nThank you for your understanding.\r\n\r\n"
+							document.getElementsByClassName("fancy-box")[0].innerText=msg;
+							</script>
+							<p>
+							Today, April 12, 2021, I noticed a significant amount of DM's on my Reddit. People kept asking me to help them set up a crc32 bypass, a technique discussed in <u><a href="https://ferib.dev/blog/bypassing-World-of-Warcraft-crc32-integrity-checks">one of my previous blog posts</a></u>. But why did so many people felt the need to bypass crc32 checks? and why did they started desperately asking me for help?
+							</p>
+							</header>
+							<h2>What Happened?</h2>
+							<p>
+							Little did I know, Today was the <u><a href="https://www.eurogamer.net/articles/diablo-2-alpha-sign-up-access-release-8017#:~:text=tide%20you%20over.-,Diablo%202%20alpha%20release%20times%20and%20dates%3A%20When%20does%20the,9th%20and%20Monday%2C%20April%2012th.">last day of the 'Diablo II: Resurrected' closed alpha</a></u>. What has that to do with my <u><a href="https://ferib.dev/blog/bypassing-World-of-Warcraft-crc32-integrity-checks">crc32 blog post</a></u> you may ask? Well, Blizzard Entertainment is not only the developer of the Warcraft series, including World of Warcraft, which my crc32 blog post bypass was all about. But they also are the developers of the Diablo series. 
+							</p>
+							<p>
+							'Diablo II: Resurrected' is basically a remake of Diablo II, so it seems like they not only copy-paste a 20y/old game, but they also happend to copy-pasted their existing anti-cheating modules.
+							</p>
+							<h2>The Anti-Cheating</h2>
+							<p>
+							This is where I started connecting the dots, people tried to copy-paste my anti-anti-cheating tool so that they could defeat a copy-paste anti-cheating inside a copy-paste game. Makes sense, right?
+							</p>
+							<p>
+							According to this <u><a href="https://www.ownedcore.com/forums/diablo-2-resurrected/diablo-2-resurrected-bots-programs/940315-some-basic-offsets-let-you-play-offline.html#post4298521">Ownedcore Thread</a></u>, user King48488 claims to be able to unlock offline mode, yet he does not explain how to patch.
+							</p>
+							<p>
+							<img src="../../img/blog/d2r_oc_king_post.png" width="708" height="293"/>
+							</p>
+							<p>
+							Unfortunately, Diablo II: Resurrected comes with an improved anti-cheating system that is protecting the game's codebase from modifications. People often apply small modifications to the game code to alter its behavior, this is often referred to as 'patching' or 'modding'.
+							</p>
+							<h3>Obtaining the game</h3>
+							<p>
+							After multiple people asking me to update my crc32 bypass for Diablo II: Resurrected I decide why not, it could be a nice and educative challenge. So after I purchased a pre-order of the game, I noticed that people were sharing a tool that was used to download the game directly from the CDN. Meaning that, instead of pre-ordering the game, you could just use Blizzard's own CDN and just download the game files from it. This may sound useless, but oh boi does that become interesting once you are able to patch the game and unlock offline game modes without a license.
+							</p>
+							<p>
+							<img src="../../img/blog/free_real_estate.png" width="486" height="246"/>
+							</p>
+							<h2>Defeating the Anti-Cheating</h2>
+							<p>
+							Once I got my game installed, it was pretty useless. My game launches, tells me I don't have access to the technical alpha and then exits. The good thing for me is that the anti-cheating gets initialized at game startup, so I could start working on bypassing the anti-cheating just fine.
+							</p>
+							<p>
+							Since I already patched the crc32 checks for World of Warcraft, it only took me a couple of hours to port it to the Diablo II: Resurrected game. After pulling a one-nighter I managed to update the <u><a href="https://github.com/ferib/D2R-Offline/blob/e460ae85d0f7c1f3e64f0c9025520b5c27125949/src/Tools/Patcher.cs#L296">raw assembly code</a></u> for the crc32 hook and figured out that I also had to remap the game back to its original state after I was done patching. That was something I did not do in the previous version because there was no need for it, until now.
+							</p>
+							<h3>Unlocking Offline Mode</h3>
+							<p>
+							According to that one Ownedcore Thread, it was not possible to play single player mode after a character was created. That issue had something to do with the save file that gets created when the player 'save & exits' the game. This and a few other problems have later on been fixed and have now become part of a new project called <b>D2ROffline</b>.
+							</p>
+							<p>
+							Project D2ROffline is all about modding and patching Diablo II: Resurrected, right now the main focus is unlocking as much of the alpha content as possible, such as unlocking classes that should not have been playable during the technical alpha. Go <u><a href="https://github.com/ferib/D2R-Offline">check it out</a></u> on GitHub.
+							</p>
+							<h3>Unlocking Multiplayer Mode</h3>
+							<p>
+							I don't know about you but I get bored when I play with myself for too long, so I started reversing the game and looked into how multiplayer works. The game has an option to do 'local multiplayer', which allows one client to be a host while other clients connect to the host.
+							</p>
+							<p>
+							Unfortunately, the host kept crashing every time a client tried to join the host. This was quickly fixed after patching out a stack corruption check, surprisingly the game ran stable enough without that check. After <u><a href="https://www.reddit.com/r/CrackWatch/comments/mqy4hf/diablo_2_resurrected_alpha_offline_crack/">someone leaked my patcher</a></u> I started hosting a server and tweeted the host address and before I knew a bunch of strangers start logging into my game and we had an amazing time fighting Diablo's minions!
+							</p>
+							<p>
+							<blockquote class="twitter-tweet"><p lang="en" dir="ltr">To the Den! <a href="https://t.co/SDSNEGjVmq">https://t.co/SDSNEGjVmq</a> <a href="https://t.co/BClUZ1BU7R">pic.twitter.com/BClUZ1BU7R</a></p>&mdash; Ferib Hellscream (@FeribHellscream) <a href="https://twitter.com/FeribHellscream/status/1382826244132241415?ref_src=twsrc%5Etfw">April 15, 2021</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+							</p>
+							<h3>Next Level Multiplayer</h3>
+							<p>
+							It's all fun and games until you have to turn off your game resulting in a host that is no longer reachable. This especially sucks because there is no official game server online and this multiplayer feature should not even be available... not even to the technical alpha testers. 
+							</p>
+							<p>
+							But that doesn't stop me from creating my very own server emulator that I can run and host in the cloud on a Linux VPS. Right now the server emulation project is in a very early stage, but you can already check it out at <u><a href="http://d2rga.net">d2rga.net</a></u>. Not only does it display a website, it is also the URL where the game server emulator is hosted.
+							</p>
+							<p>
+							If that's not enough, I also managed to make my server emulator backward compatible with the old Diablo II game client, thanks to Blizzard for copy-pasting the game core, resulting in backward compatibility for my server emulator, cheers!
+							</p>
+							<p>
+							<img class="zoom" src="../../img/blog/d2r_server_emulator_bc.jpg" width="1631" height="885" />
+							</p>
+							<h2>Disclaimer</h2>
+							<p>
+							This article is for educational purposes only.
+							</p>
+							<p>
+							<i>NOTE: Diablo II and Diablo II: Resurrected are registered trademarks of Blizzard Entertainment. This project is not affiliated with Blizzard Entertainment in any way.</i>
+							</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

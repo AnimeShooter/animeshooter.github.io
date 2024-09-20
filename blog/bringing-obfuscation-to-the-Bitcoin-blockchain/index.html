@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+					<!-- 
+					<header>
+						<h1>Bringing Obfuscation to the Bitcoin Blockchain</h1>
+						<p>
+							The Bitcoin protocol has been the first Peer-to-Peer digital cash system made available and just like thousands of other users I am enjoying all the benefits of (pseudo) anonymous transactions. Not having to worry about third-party regulations and other bullshit is the reason for my day-to-day usage of Bitcoin.</p>
+					</header>
+					<p>Unfortunately, my experience with the Bitcoin protocol wasn't all that amazing after learning more about how 'anonymous' the transactions really are. Therefore I felt the need to investigate the potential solutions and how they can be applied.</p>
+					-->
+						<header>
+							<h1>Bringing Obfuscation to the Bitcoin Blockchain</h1>
+							<p>Bitcoin and Litecoin transactions are considered 'anonymous' because they don't require any identification. However, once a Bitcoin address is revealed, all associated transactions become transparent. This article explains how the Unspent Transaction Output (UTXO) model is used by both cryptocurrencies to track historical amounts of data, and how blockchain analysis can be used to identify the parties involved in a transaction. Additionally, the article explores obfuscation techniques that can make it more difficult for outsiders to trace transactions on the blockchain.</p>
+						</header>
+						
+						<h2 id="BitcoinTheUnregulatedCasino">Bitcoin, The Unregulated Casino.</h2>
+						<blockquote class="twitter-tweet"><p lang="en" dir="ltr">Not sure if Elon Musk&#39;s pump and dump of Bitcoin is technically illegal or securities fraud.<br><br>But it is super sketchy, and someone supposedly revolutionizing our energy use and innovating on space travel should be doing better than this. <a href="https://t.co/FTaKfaZNLb">pic.twitter.com/FTaKfaZNLb</a></p>&mdash; Arpit Gupta (@arpitrage) <a href="https://twitter.com/arpitrage/status/1394088206694600708?ref_src=twsrc%5Etfw">May 17, 2021</a></blockquote> <script async src="https://platform.twitter.com/widgets.js" charset="utf-8"></script>
+						<p>
+							The Bitcoin protocol has been so popular that it reached mainstream interest. Unfortunately, most of those people aren't here to benefit from the peer-to-peer pseudo-anonymouse cash system, but instead, attempt to profit from its volatile value and unregulated trading habits which are often associated with <a href="https://twitter.com/arpitrage/status/1394088206694600708">'pump and dumps' or other shady schemes</a> in an attempt to make a quick buck.
+						</p>
+						<p>
+							This popularity resulted in a high increase in transactions, but the Bitcoin Blockchain is only capable of processing 1MB of transaction data in every block, which is mined roughly every 10 minutes depending on the network. Transactions can be broadcasted with a fee as miners favor the most rewarding transactions, resulting in high fees due to the constant need for transactions being broadcasted by its users.</p>
+						<p>
+							An average transaction is about 224 bytes meaning a 1 MB block <i>(1.048.576 bytes)</i> can have about 4681-ish average transactions, which will be processed in an average of about 10 minutes, or about 7.8 transactions every second. The scarcity of the block size is the reason why transaction fees have become so high over the last few years. At the time of writing the transaction fee is about 102 Satoshis/bytes, whereas back in the good old days I could get picked up for as little as 3-4 Satoshis per byte. These fees have changed from a mere 0.02$ to 0.65$ on average. On a bad day, you might find yourself paying up multiple (tens) of dollars to get picked up by a miner.
+						</p>
+						<h2 id="SayHelloToLitecoin">Say Hello to Litecoin</h2>
+						<p>
+							The Bitcoin community has come up with some interesting technologies to cope with this scalability problem. Some of these solutions were <a href="https://github.com/bitcoin/bips/blob/master/bip-0141.mediawiki">SegWit</a>, <a href="https://github.com/bitcoin/bips/blob/master/bip-0341.mediawiki">Taproot</a>, and the <a href="https://en.bitcoin.it/wiki/Lightning_Network">Lightning Network</a>. However, my 'solution' to deal with this problem is to just use another blockchain. I chose the Litecoin project, it is one of the first Bitcoin forks and it seems to have some nice adoption in the communities. For now, I will just hold onto Bitcoins as means of value and use Litecoins as an intermediate for transacting money.
+						</p>
+						<h2>The Actual Problem</h2>
+						<p>Okay, with that out of the way it is time to face the real problem. Throughout this research, I will mix both Bitcoin and Litecoin as they are based on the same code base, and share the same problem. The main difference is that Litecoins aren't Bitcoins as Litecoins are being transacted on the Litecoin blockchain. The problems I face with pseudo-anonymity remain the same as blockchain technology is fundamentally the same on both chains.</p>
+						<p>The actual problem I face has to do with how Bitcoin works as peer-to-peer cash. Everything is transparent as it is publicly registered on the blockchain. The reason this is still 'anonymous' is that no KYC or other types of identification are required to start using the Bitcoin protocol. All it takes is some cryptography to generate a public key (address) and private key, and you are ready to receive and create Bitcoin transactions without any questions asked.</p>
+						<p>Everything is anonymous until you reveal your Bitcoin address. In other words, if you send or receive funds, the party you transact with will become aware of your address and can look everything up on the blockchain to see your historical data, and might even continue to monitor your addresses for new data. (e.g. to see how or when you send funds around).</p>
+						<h3>Transactions in a nutshell</h3>
+						<p>Bitcoin and Litecoin both use the Unspent Transaction Output (UTXO) model which uses 'inputs' and 'outputs' to keep track of historical amounts of data. The idea is that one address can obtain multiple outputs with a certain amount inside of them. These outputs can only be spent once, which is why a 'return address' is a thing.</p>
+						<p>Let's say you own 10 Bitcoins, and you want to send Bob 1 Bitcoin. To do so, you will send 1 Bitcoin to Bob and the remaining 9 will be sent back to yourself, as you must consume all value of the given output. You and Bob now own each a new unique output containing 9 Bitcoins and 1 Bitcoin respectively. The 10 Bitcoins output used as input for the transaction has now been marked as 'spent' and can no longer be used in further transactions. <i>(unless you do a <a href="https://en.wikipedia.org/wiki/Double-spending">double spending attack</a>)</i>.</p>
+						<h2 id="BlockchainAnalysis">Blockchain Analaysis</h2>
+						<img alt="average transaction to Bob" src="../../img/blog/ltc_transact_normal.png"/>
+						<p>The above image illustrates the coin flow of the average transactions, like the one mentioned above, where two parties transact Litecoins. It is good practice to create a new address and use it as the return address used to confuse anyone looking into the transaction with no context. For example, an outsider won't be able to differentiate the 'return address' and the receiver, however, one might guess a transaction of either 1 Litecoin or 9 Litecoins was done, and the remainder is in possession of the previous owner under a new address.</p>
+						<p>Just looking at the single transaction can only result in an assumption as, none, one, or two addresses could be owned by the sender. To have a more accurate result we should look at more transaction data and perform a technique known as 'UTXO consolidation analysis'.</p>
+						<p>The idea of consolidation analysis is that, if you do not have the required amount in one output, you will need to consume another output. For example, let's say Bob now has 1 Litecoin and wants to send 2 Litecoins to his online book shop. To do so, Bob can use the 1 Litecoin output he already owns, but he would need another output to cover up for the missing 1 Litecoin.</p>
+						<img alt="Bob does follow-up transaction" src="../../img/blog/ltc_transact_normal_two.png"/>
+						<p>Let's assume Bob informed us about the new book he wanted to purchase online for 2 Litecoins. By looking at the coin flow of the new transaction we can see Bob used our 1 Litecoin and 1 other Litecoin from an unknown address <i>(named Unknown 1)</i>. We can now assume that Bob was already in possession of 1 Litecoin prior to obtaining the 1 Litcoin we send and we can now perform analysis to see where Bob's previous 1 Litecoin came from. <i>(Further analysis of Bob's Litecoins is not possible as all Litecoins were spent to purchase the book and we are left with a dead end.)</i></p>
+						<h2>Obfuscating Coin Flow</h2>
+						<p>Bob might not worry about his recent purchase in the bookstore, however, he might not want anyone to know how many Litecoins he has in his possession. Bob has his reason, don't question Bob's reasons. Bob says normal people don't yell around how much money they have in their (traditional) banks, Bob also likes to be humble, but unfortunately, the Blockchain was not made that way.</p>
+						<p>For Bob to hide his historical Blockchain transaction data he will make use of so-called mixers. The idea of mixers is that your coins are mixed together with other participants, and after some time you (hopefully) get coins back but with randomized historical transactions to confuse blockchain analysis.</p>
+						<p>Unfortunately, Bob, like many others, has some serious trust issues. Bob is not going to send money to an unknown online platform in the hope he gets his money back. The whole Blockchain system was made to be trustless as multi-signature transactions are a thing. This is why Bob stumbled upon a technology called 'CoinJoin', a zero-trust, 'coin-mixing' technology that obfuscates the coin flow and might even reduce the size of the transactions.</p>
+						<h3 id="WhatIsCoinJoin">What is CoinJoin</h3>
+						<p>The original <a href="https://bitcointalk.org/index.php?topic=279249.0">CoinJoin</a> concept was brought to light by user 'gmaxwell' on the Bitcointalk forums. The idea is a traditional transaction of one-to-one is replaced by multiple to multiple. Let's take the previous example where only you were transacting money and add a second person, Alice to the transaction. Alice said she was in need to send 1 Litecoin from her address 'X', to another address 'Y'.</p>
+						<p>We will go back in time and instead of sending Bob 1 Litecoin in a one-on-one transaction, we will do a multi-sig transaction. You will send your 1 out of 10 Litecoins to Bob but at the same time Alice will send her 1 out of 2.5 Litecoins to an address she specified as 'X'. Alice does not need to trust you as you only own 1 (out of 2) keys to complete the transaction, therefore, Alice will obtain the partially signed transaction, and (optionally) decodes the transaction to verify where her money is being sent to. When she is satisfied she signs the transaction and she is the last one to sign, she will broadcast it to the Litecoin network.</p>
+						<img alt="two person multisignature transaction" src="../../img/blog/ltc_multisig_transcat.png"/>
+						<p>The above image illustrated the multisigned transaction in which both You and Alice participated to send 1 Litecoin to Bob, 1 Litecoin to X, 1.5 Litecoin to Alice's return, and 9 Litecoin to your return. Even without labels, it is obvious to see both return addresses, however, the 1 Litecoin transactions to either Bob or X are indistinguishable if no label was applied. By making outputs with an equal amount (1 Litecoin in this case) it is no longer possible to see who owns what.</p>
+						<p>Did Alice send 1 Litecoin to another person? or does Alice own 1 X? And for the third party that has no knowledge about Bob, who send that 1 Litecoin to who?
+						</p>
+						<h4 id="RealExample">Dissecting a Real Example</h4>
+						<p>The below image shows a <a href="https://live.blockcypher.com/btc/tx/8ea818e2335e3aab8286fe3ddbff23a3a8ca05b26c9331f232ed6fd04c1aaba7/">real example</a> broadcasted on the Bitcoin blockchain. Two addresses owning 0.00012 BTC and 0.00015 BTC have transacted to 4 outputs. Two of those outputs are equal (0.0001 BTC) and the two other outputs are unique as they are most likely the return addresses of both participants.
+						</p>
+						<img alt="blockchain registered two person multisig transaction" src="../../img/blog/real_coin_join_example.png"/>
+						<p>Interesting to note, the sum doesn't add up. </p>
+						<p>
+							<pre>Total input  (0.0001200 + 0.0001500): 0.0001700
+Total output (0.0001134 + 0.0001501): 0.0001635</pre>
+						</p>
+						<p>The first thing we notice is the total output not matching the total input. Unlike our theoretical example, the difference between the total input and total output is there as they are left for the transaction fees.</p>
+						<pre>0.0001000 + 0.0000134 = 0.0001134
+0.0001000 + 0.0000501 = 0.0001501</pre>
+						<p>Additionally, we can see the outputs don't add up either. We can assume the 2 addresses that participated in the transaction get 2 outputs each, matching the total of 4 outputs. If we take a 0.0001 address and add it up with a return address we see a noticeable difference.</p>
+						<p>The owner sending 0.0001500 is now assumed to own 0.0001501, we just do not know which one of the 0.0001000 outputs is owned by him. The owner sending 0.0001200 is now assumed to own 0.0001134, which is way less. Most likely because 0.0001200 is being used to pay the network fees, and second, is paying a <i>(very low)</i> fee of 0.0000001 to 0.0001500 for mixing the assets. </p>
+						<h3 id="BuildingCoinJoin">Building a CoinJoin</h3>
+						<p>Now that we have a full understanding of what to do, we can jump right into our IDE and start building a solution that builds on this idea. As you might already know, I am a big fan of C# and will therefore be using C# in combination with the popular <a href="https://www.nuget.org/packages/NBitcoin/">NBitcoin</a> library.</p>
+						<p>Fast forward I created this <a href="https://github.com/ferib/MultiSigTransaction">MultiSigTransaction GitHub repo</a> that contains some helper classes for adding, removing, and updating so-called '<a href="https://github.com/ferib/MultiSigTransaction/blob/master/Participant.cs">Participants</a>' that can be assigned to a '<a href="https://github.com/ferib/MultiSigTransaction/blob/master/Group.cs">Group</a>' created by the '<a href="https://github.com/ferib/MultiSigTransaction/blob/master/GroupManager.cs">GroupManager</a>'.</p>
+						<p>With the use of those helper classes, we can create a multi-signature transaction with ease using the code below.</p>
+						<p><pre class="code_box"><span class="c_green">// Create a group that agrees on 600 satoshi output</span>
+<span class="c_white">GroupManager</span> <span class="c_white">GroupManager</span> <span class="c_white">=</span> <span class="c_blue">new</span> <span class="c_yellow">GroupManager</span><span class="c_white">&#40;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">decimal</span> <span class="c_white">amount</span> <span class="c_white">=</span> <span class="c_purple">600</span><span class="c_white">;</span>
+<span class="c_blue">Group</span> testGroup <span class="c_white">=</span> <span class="c_white">GroupManager</span><span class="c_white">.</span><span class="c_yellow">CreateNewGroup</span><span class="c_white">&#40;</span><span class="c_pink">&quot;test&quot;</span>, <span class="c_white">amount</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+&nbsp;
+<span class="c_green">// Add 2 participants</span>
+<span class="c_white">Participant Alice</span> <span class="c_white">=</span> <span class="c_blue">new</span> <span class="c_yellow">Participant</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Alice&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">testGroup</span><span class="c_white">.</span><span class="c_yellow">AddParticipant</span><span class="c_white">&#40;</span><span class="c_white">Alice</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+&nbsp;
+<span class="c_white">Participant Bob</span> <span class="c_white">=</span> <span class="c_blue">new</span> <span class="c_yellow">Participant</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Bob&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">testGroup.</span><span class="c_yellow">AddParticipant</span><span class="c_white">&#40;</span><span class="c_white">Bob</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+&nbsp;
+<span class="c_green">// Alice configuration</span>
+<span class="c_white">Alice</span><span class="c_white">.</span><span class="c_yellow">UpdateMainAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;bc1qrk259cv8m7hgcejqyw2g8772ngfmc6n32hu4gx&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>      <span class="c_green">// Alice send addr</span>
+<span class="c_white">Alice</span><span class="c_white">.</span><span class="c_yellow">UpdateReturnAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;bc1qrk259cv8m7hgcejqyw2g8772ngfmc6n32hu4gx&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>    <span class="c_green">// Alice recv addr (same as main for now)</span>
+<span class="c_white">Alice</span><span class="c_white">.</span><span class="c_yellow">AddOutputAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;3LFaWZ1zoxzAXkG94E5Hw5PfjnhQz2aeMR&quot;</span>, <span class="c_white">amount</span><span class="c_white">&#41;</span><span class="c_white">;</span>       <span class="c_green">// Alice sends 600 sats to target</span>
+<span class="c_blue">bool</span> <span class="c_white">readyA</span> <span class="c_white">=</span> <span class="c_white">Alice</span><span class="c_white">.</span><span class="c_yellow">Ready</span><span class="c_white">&#40;</span><span class="c_blue">true</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">if</span> <span class="c_white">&#40;</span><span class="c_white">!</span><span class="c_white">readyA</span><span class="c_white">&#41;</span>
+<span class="c_white">&#123;</span>
+    <span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Alice failed getting ready&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+    <span class="c_blue">return</span><span class="c_white">;</span>
+<span class="c_white">&#125;</span>
+&nbsp;
+<span class="c_green">// Bob configuration</span>
+<span class="c_white">Bob</span><span class="c_white">.</span><span class="c_yellow">UpdateReturnAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;bc1qq2g23nufzygkgc78rzpsghmx0egvfr4wkf6n3u&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">Bob</span><span class="c_white">.</span><span class="c_yellow">UpdateMainAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;bc1qq2g23nufzygkgc78rzpsghmx0egvfr4wkf6n3u&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">Bob</span><span class="c_white">.</span><span class="c_yellow">AddOutputAddress</span><span class="c_white">&#40;</span><span class="c_pink">&quot;3H9LV7w89mqWP4HTjGtRamvbdhRr72KXXh&quot;</span>, <span class="c_white">amount</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">bool</span> <span class="c_white">readyB</span> <span class="c_white">=</span> <span class="c_white">Bob</span><span class="c_white">.</span><span class="c_yellow">Ready</span><span class="c_white">&#40;</span><span class="c_blue">true</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">if</span> <span class="c_white">&#40;</span><span class="c_white">!</span><span class="c_white">readyB</span><span class="c_white">&#41;</span>
+<span class="c_white">&#123;</span>
+    <span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Bob failed getting ready&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+    <span class="c_blue">return</span><span class="c_white">;</span>
+<span class="c_white">&#125;</span>
+&nbsp;
+<span class="c_blue">bool</span> <span class="c_white">canStart = testGroup.</span><span class="c_yellow">CanMultiSig</span><span class="c_white">&#40;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">if</span> <span class="c_white">&#40;</span><span class="c_white">!canStart&#41;</span>
+<span class="c_white">&#123;</span>
+    <span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Something wrong on group signing!&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+    <span class="c_blue">return</span><span class="c_white">;</span>
+<span class="c_white">&#125;</span>
+&nbsp;
+<span class="c_green">// start mult-ish</span>
+<span class="c_white">testGroup.</span><span class="c_yellow">StartMiltiSig</span><span class="c_white">&#40;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+&nbsp;
+<span class="c_blue">bool</span> <span class="c_white">isFinished</span> <span class="c_white">=</span> <span class="c_white">testGroup.</span><span class="c_yellow">IsFinishedSigning</span><span class="c_white">&#40;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_blue">if</span><span class="c_white">&#40;</span><span class="c_white">!isFinished&#41;</span>
+<span class="c_white">&#123;</span>
+    <span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Failed finalising the group&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">&#125;</span>
+&nbsp;
+<span class="c_green">// The current raw (unsigned) transaction</span>
+<span class="c_blue">string</span> <span class="c_white">rawTranscationHex = testGroup.</span><span class="c_white">CurrentTransaction</span><span class="c_white">.</span><span class="c_yellow">ToHex</span><span class="c_white">&#40;</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+<span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_white">testGroup.</span><span class="c_white">DebugLog</span><span class="c_white">&#41;</span><span class="c_white">;</span>
+&nbsp;
+<span class="c_white">Console</span><span class="c_white">.</span><span class="c_yellow">WriteLine</span><span class="c_white">&#40;</span><span class="c_pink">&quot;Done!&quot;</span><span class="c_white">&#41;</span><span class="c_white">;</span></pre></p>
+						<p>I won't go into too many details here as this is a lot of C# specific stuff, but after this snippet executes, the <code>rawTranscationHex</code> variable should give us this:</p>
+						<p><code>0100000002a7ab1a4cd06fed32f23193&ZeroWidthSpace;6cb205caa8a323ffdb3dfe8682ab3a5e&ZeroWidthSpace;33e218a88e0100000000ffffffffa7ab&ZeroWidthSpace;1a4cd06fed32f231936cb205caa8a323&ZeroWidthSpace;ffdb3dfe8682ab3a5e33e218a88e0300&ZeroWidthSpace;000000ffffffff035802000000000000&ZeroWidthSpace;17a914cb9ac6d00534e4595960b77259&ZeroWidthSpace;678296c9094b18875802000000000000&ZeroWidthSpace;17a914a984323e2d9b262fda7694cded&ZeroWidthSpace;dcef3ac3ce204c87b00e000000000000&ZeroWidthSpace;1600140290a8cf8911116463c7188304&ZeroWidthSpace;5f667e50c48eae00000000</code></p>
+						<p>Seems pretty boring at first, but we can decode this using the <code>decoderawtransaction</code> command in the Bitcoin Core wallet to get the following JSON output</p>
+						<p><pre class="code_box">{
+  "txid": "b5e757cb0a310cce731f184388cac1cf6f82f032067bcda7e108391810e05a71",
+  "hash": "b5e757cb0a310cce731f184388cac1cf6f82f032067bcda7e108391810e05a71",
+  "version": 1,
+  "size": 187,
+  "vsize": 187,
+  "weight": 748,
+  "locktime": 0,
+  "vin": [
+    {
+      "txid": "8ea818e2335e3aab8286fe3ddbff23a3a8ca05b26c9331f232ed6fd04c1aaba7",
+      "vout": 1,
+      "scriptSig": {
+        "asm": "",
+        "hex": ""
+      },
+      "sequence": 4294967295
+    },
+    {
+      "txid": "8ea818e2335e3aab8286fe3ddbff23a3a8ca05b26c9331f232ed6fd04c1aaba7",
+      "vout": 3,
+      "scriptSig": {
+        "asm": "",
+        "hex": ""
+      },
+      "sequence": 4294967295
+    }
+  ],
+  "vout": [
+    {
+      "value": <span class="c_purple">0.00000600</span>,
+      "n": 0,
+      "scriptPubKey": {
+        "asm": "OP_HASH160 cb9ac6d00534e4595960b77259678296c9094b18 OP_EQUAL",
+        "hex": "a914cb9ac6d00534e4595960b77259678296c9094b1887",
+        "address": <span class="c_pink">"3LFaWZ1zoxzAXkG94E5Hw5PfjnhQz2aeMR"</span>,
+        "type": "scripthash"
+      }
+    },
+    {
+      "value": <span class="c_purple">0.00000600</span>,
+      "n": 1,
+      "scriptPubKey": {
+        "asm": "OP_HASH160 a984323e2d9b262fda7694cdeddcef3ac3ce204c OP_EQUAL",
+        "hex": "a914a984323e2d9b262fda7694cdeddcef3ac3ce204c87",
+        "address": <span class="c_pink">"3H9LV7w89mqWP4HTjGtRamvbdhRr72KXXh"</span>,
+        "type": "scripthash"
+      }
+    },
+    {
+      "value": <span class="c_purple">0.00003760</span>,
+      "n": 2,
+      "scriptPubKey": {
+        "asm": "0 0290a8cf8911116463c71883045f667e50c48eae",
+        "hex": "00140290a8cf8911116463c71883045f667e50c48eae",
+        "address": <span class="c_pink">"bc1qq2g23nufzygkgc78rzpsghmx0egvfr4wkf6n3u"</span>,
+        "type": "witness_v0_keyhash"
+      }
+    }
+  ]
+}
+</pre></p>
+						<p>We can see the highlighted sections showing the amount of Bitcoins being sent to their corresponding output addresses. To complete the transaction each participant needs to sign the transaction. I do this using the Bitcoin Core command <code>walletpassphrase "mypassword" 60</code> to unlock the wallet followed by <code>signrawtransactionwithwallet</code> to sign the transaction.</p>
+						<p>In this case, I own both inputs and I can sign the transaction all by myself, the result is below.</p>
+						<p><code>01000000000102a7ab1a4cd06fed32f2&ZeroWidthSpace;31936cb205caa8a323ffdb3dfe8682ab&ZeroWidthSpace;3a5e33e218a88e0100000000ffffffff&ZeroWidthSpace;a7ab1a4cd06fed32f231936cb205caa8&ZeroWidthSpace;a323ffdb3dfe8682ab3a5e33e218a88e&ZeroWidthSpace;0300000000ffffffff03580200000000&ZeroWidthSpace;000017a914cb9ac6d00534e4595960b7&ZeroWidthSpace;7259678296c9094b1887580200000000&ZeroWidthSpace;000017a914a984323e2d9b262fda7694&ZeroWidthSpace;cdeddcef3ac3ce204c87b00e00000000&ZeroWidthSpace;00001600140290a8cf8911116463c718&ZeroWidthSpace;83045f667e50c48eae02473044022074&ZeroWidthSpace;c999c6a4f758d4c841507feaa9101406&ZeroWidthSpace;6e2dc6177e1c11362573d5019d272402&ZeroWidthSpace;203646e1e781b12912a017c81fc349bf&ZeroWidthSpace;4287789a739f14f2aa4bf5ce30644421&ZeroWidthSpace;53012102fbded889a1f26d5b362977dd&ZeroWidthSpace;eb508c7a586cdaca8893b82ca4b9be67&ZeroWidthSpace;cf7da9e002473044022023ce79f494e6&ZeroWidthSpace;e78a67e3c47269da0db414381e8b8b81&ZeroWidthSpace;bf403ad74046c24c285e022023b02c04&ZeroWidthSpace;05015e6f8b2d07dfde0125b3e8eea40f&ZeroWidthSpace;15b4621f193cb38bbc52727a012103c4&ZeroWidthSpace;8926b53c84327780f935c574525906e6&ZeroWidthSpace;de0c87981177d5fa7a953e0e0c248e00&ZeroWidthSpace;000000</code></p>
+						<p>These bytes might look meaningless but this transaction has been signed and anyone, <b>including you</b>, can take the signed transaction and broadcast it on the network. <i>(e.g. this <a href="https://live.blockcypher.com/btc/pushtx/?t=01000000000102A7AB1A4CD06FED32F231936CB205CAA8A323FFDB3DFE8682AB3A5E33E218A88E0100000000FFFFFFFFA7AB1A4CD06FED32F231936CB205CAA8A323FFDB3DFE8682AB3A5E33E218A88E0300000000FFFFFFFF03580200000000000017A914CB9AC6D00534E4595960B77259678296C9094B1887580200000000000017A914A984323E2D9B262FDA7694CDEDDCEF3AC3CE204C87B00E0000000000001600140290A8CF8911116463C71883045F667E50C48EAE02473044022074C999C6A4F758D4C841507FEAA91014066E2DC6177E1C11362573D5019D272402203646E1E781B12912A017C81FC349BF4287789A739F14F2AA4BF5CE3064442153012102FBDED889A1F26D5B362977DDEB508C7A586CDACA8893B82CA4B9BE67CF7DA9E002473044022023CE79F494E6E78A67E3C47269DA0DB414381E8B8B81BF403AD74046C24C285E022023B02C0405015E6F8B2D07DFDE0125B3E8EEA40F15B4621F193CB38BBC52727A012103C48926B53C84327780F935C574525906E6DE0C87981177D5FA7A953E0E0C248E00000000">online tx pusher</a> can broadcast any signed transacting for you)</i>. Feel free to do so as I made this transaction for educational purposes. In other words, the transaction fees are set very low so it won't be picked up by the network and will be either 'stuck' in the <a href="https://en.bitcoin.it/wiki/Vocabulary#Memory_pool">mempool</a> or waiting to be broadcasted again.</p>
+						<p>
+						In a realistic secanrio, the transaction would first have been created with reasonable transactions fees and would then be broadcasted by the last user that signs it. From there, the network will pick it up in any of the new mined blocks and the transactions will be completed.
+						</p>
+						<h2 id="Conclusion">Conclusion</h2>
+						<p>We have addressed how pseudo-anonymity does not fit the need of day-to-day users and looked into multi-signature transactions to have a joined group of participants to transact money. Each participant has to agree on sending the exact same amount to keep the transaction obscure. This type of transaction is often referred to as a 'CoinJoin' and is proven to be effective as long as the participants follow good practices (e.g. no coin consolidation) in order to keep their coins obscured.</p>
+						<p>In a realistic scenario, the transaction would first have been created with reasonable transaction fees and would then be broadcasted by the last user that signs it. From there, the network will pick it up in any of the newly mined blocks and the transactions will be completed.</p>
+						<p>With that being said, it looks like the only challenge left is to somehow find other people who want to participate in such a joint transaction and follow a certain set of good practices to not weaken the obfuscated transaction. A challenge left to be solved another time.</p>
+					</article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>

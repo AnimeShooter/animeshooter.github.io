@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600">    
+			</div>
+			<div class="post-content">
+				<div class="fancy-box readability">
+					<article>
+						<header>
+							<h1>Lua Devirtualization Part 4: Custom Virtualization <span class="blogpost-date">01/06/2022</span></h1>
+							<p>
+							In the previous 3 articles, we have looked into the use cases of Lua obfuscation, and why it's so important. Followed by a deep dive into Lua compilation and recently in part 3, we took that compiler knowledge and somewhat pen tested an existing Lua Virtualized script for education purposes.
+							</p>
+							<p>
+							With all that previous research in mind, it's time to build our own custom Lua VM that we can then harden wherever we think is necessary. Once that is done, we will put it to the test and perform some attacks to see how effective our Lua VM actually is.
+							</p>
+						</header>
+						<p>
+						Before you continue, please note that the whole series -- including this article -- is targeting Lua 5.1 specifically!
+						</p>
+						<p>
+						This article is part 4 of 4, you can find a complete overview of all the articles below:
+						</p>
+						<ul>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-1-introduction">Part 1: Introduction</a></u></li>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua">Part 2: Decompiling Lua</a></u></li>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u></li>
+							<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-4-custom-virtualization">Part 4: Custom Virtualization</a></u></li>
+						</ul>
+						<br/>
+						<h2>Best Bang for Buck</h2>
+						<p>
+						Time is money! Both yours and my time is valuable so to get the best bang for buck I decided to simply fork an existing Lua VM obfuscator called IronBrew2.
+						The IronBrew2 project is written in C# and works as follows.
+						</p>
+						<p>
+						First, it takes a Lua script as input to then invoke the LuaC binary, which will result in a compiled .luac file being written to disk.
+						</p>
+						<p>
+						Once the compiled Lua file is created the IronBrew2 will open the newly created file and start parsing all the compiled Lua information, <a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua#LuaCompiled">very similar to what we have done in Part 2</a> with our <a href="https://github.com/ferib/LuaToolkit">LuaToolkit</a> project.
+						</p>
+						<p>
+						After that's done it's time to start generating some Lua code, the first part will be the deserialization followed by the most important piece, the interpreter. The deserialization will contain all our data such as Lua Instructions, Constants, etc. Whereas the interpreter contains the logic of each opcode. Obviously, this is the part where all the magic happens, so hold tight as I finish explaining the high-level view.
+						</p>
+						<p>
+						Finally, after the somewhat custom Lua VM <i>(prefab VM handlers + custom deserializer)</i> is created it will launch a few LuaJIT instances to run a bunch of Lua scripts on the newly generated Lua VM script to perform minification, rename local variables, comments, and a bunch of other stuff.
+						</p>
+						<p>
+						The result is a final Lua script with <i>(optionally)</i> obfuscated/packed data serialization and a somewhat unique Lua interpreter that is generated for the exact set of instructions used in the original Lua script. To throw in some extra optional obfuscation some instructions might be mutated or duplicated.
+						</p>
+						<h2>Build-A-VM</h2>
+						<p>
+						Now that we have a high-level understanding of IronBrew2 it's time to <a href="https://github.com/ferib/ironbrew-2">fork IronBrew2 off GitHub</a> and start customizing it. The project is fully open-sourced making it pretty insecure, hence why we will be modifying and enhancing where we think is needed.
+						</p>
+						<p>
+						<i>NOTE: IronBrew2 was forked from GitHub user <a href="https://github.com/Trollicus/ironbrew-2">Trollicus</a>, not sure if real author!</i>
+						</p>
+						<h3>Compiler-ish</h3>
+						<p>
+						</p>
+							<h4>Compile using Lua</h4>
+							<h4>Serialize Instructions</h4>
+							<h4>Build: Instructions</h4>
+							<h4>Build: Data</h4>
+						<h3>The Lua VM</h3>
+							<h4>Deserialize Instructions</h4>
+							<h4>The Interpreter</h4>
+						
+						<h2>Break-A-VM</h2>
+						<p>
+						To put our newly copy-pasted VM to the test we will perform some tests of our own. Hopefully, this will give a better understanding of where our weak points are and see how difficult it is to automate the devirtualization process.
+						</p>
+						<p>
+						For this article, I developed a new C# Library named <a href="https://github.com/LowLevelBinaryClub/LuaScriptToolkitLib">LuaScriptToolkit</a> which we will be using for the attack. The library is a Lua Tokenizer and Abstract Syntax Tree (AST) Parser that will assist us in disecting different components of the Lua VM during our attack.
+						</p>
+							<h2>Attack Vectors</h2>
+							<p>
+							In the previous article (part 3), we already took a deep look into attacking a similar Lua VM, so with that knowledge in mind I have come up with the following attack vectors that I think will be the most interesting ones.
+							</p>
+							<p>
+								<ul>
+									<li><a href="#AttackingDeserialization">Attacking Deserialization</a>
+										<ul>
+											<li><a href="#EmulateDeserialization">Emulate Deserialization</a></li>
+										</ul>
+									</li>
+									<li><a href="#AttackingTheInterpreter">Attacking The Interpreter</a>
+										<ul>
+											<li><a href="#IdentifyOpCodes">Identify OpCodes</a></li>
+											<li><a href="#IdentifyHandlers">Identify Handlers</a></li>
+											<li><a href="#RecompileToLua">Recompile to Lua</a></li>
+										</ul>
+									</li>
+								</ul>
+							</p>
+							<h3 id="AttackingDeserialization">Attacking Deserialization</h3>
+							<p>
+							<!-- TODO: add ID Unpacking -->
+							Do you remember <a href="https://ferib.dev/blog/lua-devirtualization-part-1-introduction#Unpacking">this big 'unpack' function</a> that deserializes the VM data from the previous article? We managed to attack this by running the Lua VM inside a Lua IDE after we set a breakpoint. Once the execution halted at the breakpoint we dumped a table containing all the VM Memory.
+							</p>
+							<h4 id="EmualteDeserialization">Emulate Deserialization</h4>
+							<p>
+							To perform this attack automated I will be using MoonSharp -- a C# Library that allows the execution of Lua -- combined with our LuaScriptToolkit. The following code will iterate all statements in the main block and define the last function call as VMCall.
+							</p>
+							
+							<pre class="code_box"><span class="c_blue">private Table</span> <span class="c_yellow">EmulateDeserialze</span>()
+{
+	<span class="c_green">// append return to VM call if not already</span>
+	NodeCall vmCall = <span class="c_blue">null</span>;
+	NodeBlock block = (NodeBlock)RootNode;
+
+	<span class="c_green">// find the VM Call (last call)</span>
+	<span class="c_blue">for</span> (<span class="c_blue">int</span> i = <span class="c_purple">0</span>; i &lt; block.Statements.Length; i++)
+	{
+		<span class="c_blue">var</span> statement = block.Statements[i];
+		<span class="c_blue">if</span> (statement.Type == LuaNode.NodeType.Call)
+			vmCall = (NodeCall)statement;
+	}
+
+	<span class="c_blue">if</span> (vmCall != null)
+	{
+		<span class="c_green">// make sure VM Call returns table (by adding a NodeReturn block in the AST)</span>
+		NodeReturn returnCall = <span class="c_blue">new</span> <span class="c_yellow">NodeReturn</span>()
+		{
+			Values = <span class="c_blue">new</span> LuaNode[<span class="c_purple">1</span>] { vmCall }
+		};
+		Deobfuscator.Engine.<span class="c_yellow">WriteNodeToNode</span>(RootNode, vmCall, returnCall);
+	}
+
+	<span class="c_green">// TODO: fix table!?</span>
+	<span class="c_blue">var</span> unpacked = Script.<span class="c_yellow">RunString</span>(RootNode.<span class="c_yellow">ToString</span>().<span class="c_yellow">ToString</span>());
+
+	<span class="c_blue">if</span> (unpacked.<span class="c_yellow">IsVoid</span>())
+		<span class="c_blue">throw new</span> Exception(<span class="c_pink">"EmulateDeserialze failed!"</span>); <span class="c_blue">// err</span>
+
+	<span class="c_green">// return the 'unpacked' table which represents the Lua VM memory</span>
+	<span class="c_blue">return</span> unpacked.Table;
+}</pre>
+						<p>
+						The image below shows the block statements that were being iterated in the for loop.
+						</p>
+						<p>
+						<img width="" height="" alt="iterating statements of Nodeblock " src="../../img/blog/luao_ast_block_statements_vmcall.png" class="zoom"></img>
+						</p>
+						<p>
+						After MoonSharp is done executing the Lua script it will return a table from VMCall, which we can access in our C# context. The table should contain instructions, functions, and maybe line info <i>(if enabled in IronBrew2)</i>.
+						</p>
+						<p>
+						Now that we have all that information dumped from the Lua VM we are almost able to reconstruct the compiled Lua file, the only part missing is the mapping between the VM OpCodes and Lua OpCodes.
+						</p>
+						<h3 id="AttackingTheInterpreter">Attacking The Interpreter</h3>
+						<p>
+						To solve the last piece of the puzzle we will need to attack the interpreter. We will do so by taking out every VM handler. Once we have all VM handlers we will need to perform some flow analysis to see which if-statements are behind each VM handler.
+						</p>
+						<h4 id="IdentifyOpCodes">Identify OpCodes</h4>
+						<p>
+						</p>
+						<h4 id="IdentifyHandlers">Identify Handlers</h4>
+						<p>
+						</p>
+						<p>
+						<img width="" height="" alt="reCAPTCHA by with Lua VM Handlers" src="../../img/blog/luao_are_you_reverse_engineer.png" class="zoom"></img>
+						</p>
+						<p>
+						</p>
+						<h4 id="RecompileToLua">Recompiling to Lua</h4>
+						<p>
+						Recompiling is a big word, we are actually just lifting or basically 'renaming' the OpCodes as they seem to be a 1 on 1 virtualized. To do so we will use our old friend <a href="#">LuaToolkit</a> and use LuaEncode to create a Compiled Lua file.
+						</p>
+						<p>
+						Unfortunately, the PoC is fairly limited and does not contain automated VM Handler identification nor is there a way to add manual input. The project is still in a very early and experimental state so I will have to disappoint you as neither this tool will be an 'off the shelve' devirtualization tool for IronBrew2 or familiar Lua virtualizers.
+						</p>
+						
+						<h2>Conclusion</h2>
+						<p>
+						So there we have it, we copy-pasted a somewhat already decent Lua VM which was pretty insecure as all obfuscation logic could be used by an attack to create an automated tool to perform deobfuscation. However, we have seen that, even with such information, it still is a tedious task to get a decent working tool.
+						</p>
+						<p>
+						For example, the identification of a VM Handler could be done using basic regular expressions, which can then be hardened against by adding more prefab VM Handlers or creating slight polymorphism in each handler.
+						</p>
+						<p>
+						To my understanding, there will never be a perfect obfuscation tool out there. But one might rotate its obfuscation schemes, add new obfuscation techniques, and add various integrity checks to put in as many roadblocks as possible. This should force an attacker to have a very high skill level while consuming as much of their valuable time as possible during their attempts to attack.
+						</p>
+						<p>
+						In the end, if some piece of code is so valuable, so precious, so magical, so priceless, so exquisite... then you should simply have its functionality server-side 🙃
+						</p>
+						<h3>We did it!</h3>
+						<p>
+						With that said we have finally reached the end of a 4 part series on Lua Devirtualization and have achieved nearly a working tool. As always, this project is intended for educational purposes only, thus I don't see the need to finish the PoC tool as the research being done has given me a very good understanding of how virtual programming languages like Lua work and how such virtualization can be used as obfuscation.
+						</p>
+						<p>
+						But in case you would like to contribute on top of my existing work, feel free to do so:
+						<ul>
+							<li><a href="https://github.com/ferib/LuaDebrew">LuaDebrew</a></li>
+							<li><a href="https://github.com/LowLevelBinaryClub/LuaScriptToolkitLib">LuaScriptToolkit</a></li>
+							<li><a href="https://github.com/ferib/LuaToolkit">LuaToolkit</a></li>
+						</ul>
+						</p>
+						<p style="text-align: right">
+						<b>First article: </b><u><a href="https://ferib.dev/blog/lua-devirtualization-part-1-introduction">Part 1: Introduction</a></u>
+						</p>
+					</article>
+				</div>
+			</div>
+		</div>
+		
+	</body>
+</html>
