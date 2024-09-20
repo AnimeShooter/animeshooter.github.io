@@ -27,7 +27,7 @@
 									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-2-decompiling-lua">Part 2: Decompiling Lua</a></u></li>
 									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-3-devirtualizing-luraph">Part 3: Devirtualizing Luraph</a></u></li>
 									<!-- NOT TODAY
-									<li><u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u></li>
+									<li><u><a href="https://ferib.dev/blog/lua-devirtualization-part-4-custom-virtualization">Part 4: Custom Obfuscation</a></u></li>
 									-->
 								</ul>
 								<br/>
@@ -64,67 +64,67 @@
 							</p>
 							<p>
 							<pre class="code_box"><span class="c_green">-- use locals to hide func refferences</span>
-			<span class="c_yellow">local</span> funpack <span class="c_yellow">=</span> unpack
-			<span class="c_yellow">local</span> fpcal <span class="c_yellow">=</span> pcall
-			<span class="c_yellow">local</span> fsetfenv <span class="c_yellow">=</span> setfenv
-			<span class="c_yellow">local</span> fsetmetatable <span class="c_yellow">=</span> setmetatable
-			<span class="c_yellow">local</span> ftype <span class="c_yellow">=</span> type
-			<span class="c_yellow">local</span> fgetfenv <span class="c_yellow">=</span> getfenv
-			<span class="c_yellow">local</span> ftostring <span class="c_yellow">=</span> tostring
-			<span class="c_yellow">local</span> ferror <span class="c_yellow">=</span> error
-			<span class="c_yellow">local</span> fstringsub <span class="c_yellow">=</span> string.sub
-			<span class="c_yellow">local</span> fstringbyte <span class="c_yellow">=</span> string.byte
-			<span class="c_yellow">local</span> fstringchar <span class="c_yellow">=</span> string.char
-			<span class="c_yellow">local</span> fstringrep <span class="c_yellow">=</span> string.rep
-			<span class="c_yellow">local</span> fstringgsub <span class="c_yellow">=</span> string.gsub
-			<span class="c_yellow">local</span> fstringmatch <span class="c_yellow">=</span> string.match
-			<span class="c_yellow">local</span> ftableinsert <span class="c_yellow">=</span> table.insert
-			
-			<span class="c_green">-- more locals used to hide more refferences
-			-- &lt;...>
-			
-			-- Luraph VM</span>
-			<span class="c_yellow">local function</span> VMRun<span class="c_yellow">(</span>LPH_String<span class="c_yellow">,</span> arg2<span class="c_yellow">)</span>
-			<span class="c_green">-- NOTE: pre-unpacking
-			-- Do: LPH string to byte table (with duplicating byte X)
-			
-			-- NOTE: Helpers</span>
-			<span class="c_yellow">local function</span> LPH_GetBytes<span class="c_yellow">()</span>
-			<span class="c_yellow">local function</span> LPH_GetDWORD<span class="c_yellow">()</span>
-			<span class="c_yellow">local function</span> LPH_GetFlagBit<span class="c_yellow">(</span>flag<span class="c_yellow">,</span> start<span class="c_yellow">,</span> bitEnd<span class="c_yellow">)</span>
-			<span class="c_yellow">local function</span> LPH_unknown0<span class="c_yellow">()</span><span class="c_green"> -- decrpyt QWORD?</span>
-			<span class="c_yellow">local function</span> unk_bitxor<span class="c_yellow">()</span><span class="c_green"> -- bitwise xor function? (helper for helpers)</span>
-			<span class="c_yellow">local function</span> LPH_GetEncryptedDWORD<span class="c_yellow">()</span><span class="c_green"> -- guessed</span>
-			<span class="c_yellow">local function</span> LPH_GetString<span class="c_yellow">(</span>arg1<span class="c_yellow">)</span><span class="c_green"> -- unk arg</span>
-			
-			<span class="c_green">-- NOTE: basic unpacking
-			-- Do: table_loop1
-			
-			-- NOTE: the real unpacking function</span>
-			<span class="c_yellow">local function</span> LPH_UnpackData<span class="c_yellow">()</span>
-			
-			<span class="c_green">-- NOTE: Interpreter</span>
-			<span class="c_yellow">local function</span> LuraphInterpreter<span class="c_yellow">(</span>data<span class="c_yellow">,</span> env<span class="c_yellow">,</span> arg3<span class="c_yellow">)</span>
-			<span class="c_green">-- Do: setup initial data</span>
-			<span class="c_yellow">local function</span> Main<span class="c_yellow">(...)</span>
-				<span class="c_green">-- Do: setup more initial data</span>
-				<span class="c_yellow">local function</span> unk<span class="c_yellow">(...)</span> <span class="c_green">-- handle VARARGS?</span>
-				<span class="c_yellow">local function</span> InterpretFunc<span class="c_yellow">()</span>
-					<span class="c_yellow">while true do</span>
-						<span class="c_green">-- Do: interpret Luraph bytecode</span>
-					<span class="c_yellow">end</span>
-				<span class="c_yellow">end</span>
-				<span class="c_green">-- Do: error handling</span>
-			<span class="c_yellow">end</span>
-			setfenv<span class="c_yellow">(</span>Main<span class="c_yellow">,</span> env<span class="c_yellow">)</span>
-			<span class="c_yellow">return</span> Main
-			<span class="c_yellow">end</span>
-			
-			<span class="c_green">-- NOTE: here is where it all goes into action</span>
-			<span class="c_yellow">local</span> unpackedData <span class="c_yellow">=</span> LPH_UnpackData<span class="c_yellow">()</span> <span class="c_green">-- NOTE: Just breakpoint this and dump the 'unpackedData' table</span>
-			<span class="c_yellow">return</span> LuraphInterpreter<span class="c_yellow">(</span>unpackedData<span class="c_yellow">,</span> env<span class="c_yellow">)()</span>
-			<span class="c_yellow">end</span>
-			VMRun<span class="c_yellow">(</span><span class="c_pink">"LPH!42069<span class="c_green">&lt;...></span>"</span><span class="c_yellow">,</span> getfenv<span class="c_yellow">())</span> <span class="c_green">-- invoke Luraph VM</span>
+<span class="c_yellow">local</span> funpack <span class="c_yellow">=</span> unpack
+<span class="c_yellow">local</span> fpcal <span class="c_yellow">=</span> pcall
+<span class="c_yellow">local</span> fsetfenv <span class="c_yellow">=</span> setfenv
+<span class="c_yellow">local</span> fsetmetatable <span class="c_yellow">=</span> setmetatable
+<span class="c_yellow">local</span> ftype <span class="c_yellow">=</span> type
+<span class="c_yellow">local</span> fgetfenv <span class="c_yellow">=</span> getfenv
+<span class="c_yellow">local</span> ftostring <span class="c_yellow">=</span> tostring
+<span class="c_yellow">local</span> ferror <span class="c_yellow">=</span> error
+<span class="c_yellow">local</span> fstringsub <span class="c_yellow">=</span> string.sub
+<span class="c_yellow">local</span> fstringbyte <span class="c_yellow">=</span> string.byte
+<span class="c_yellow">local</span> fstringchar <span class="c_yellow">=</span> string.char
+<span class="c_yellow">local</span> fstringrep <span class="c_yellow">=</span> string.rep
+<span class="c_yellow">local</span> fstringgsub <span class="c_yellow">=</span> string.gsub
+<span class="c_yellow">local</span> fstringmatch <span class="c_yellow">=</span> string.match
+<span class="c_yellow">local</span> ftableinsert <span class="c_yellow">=</span> table.insert
+
+<span class="c_green">-- more locals used to hide more refferences
+-- &lt;...>
+
+-- Luraph VM</span>
+<span class="c_yellow">local function</span> VMRun<span class="c_yellow">(</span>LPH_String<span class="c_yellow">,</span> arg2<span class="c_yellow">)</span>
+<span class="c_green">-- NOTE: pre-unpacking
+-- Do: LPH string to byte table (with duplicating byte X)
+
+-- NOTE: Helpers</span>
+<span class="c_yellow">local function</span> LPH_GetBytes<span class="c_yellow">()</span>
+<span class="c_yellow">local function</span> LPH_GetDWORD<span class="c_yellow">()</span>
+<span class="c_yellow">local function</span> LPH_GetFlagBit<span class="c_yellow">(</span>flag<span class="c_yellow">,</span> start<span class="c_yellow">,</span> bitEnd<span class="c_yellow">)</span>
+<span class="c_yellow">local function</span> LPH_unknown0<span class="c_yellow">()</span><span class="c_green"> -- decrpyt QWORD?</span>
+<span class="c_yellow">local function</span> unk_bitxor<span class="c_yellow">()</span><span class="c_green"> -- bitwise xor function? (helper for helpers)</span>
+<span class="c_yellow">local function</span> LPH_GetEncryptedDWORD<span class="c_yellow">()</span><span class="c_green"> -- guessed</span>
+<span class="c_yellow">local function</span> LPH_GetString<span class="c_yellow">(</span>arg1<span class="c_yellow">)</span><span class="c_green"> -- unk arg</span>
+
+<span class="c_green">-- NOTE: basic unpacking
+-- Do: table_loop1
+
+-- NOTE: the real unpacking function</span>
+<span class="c_yellow">local function</span> LPH_UnpackData<span class="c_yellow">()</span>
+
+<span class="c_green">-- NOTE: Interpreter</span>
+<span class="c_yellow">local function</span> LuraphInterpreter<span class="c_yellow">(</span>data<span class="c_yellow">,</span> env<span class="c_yellow">,</span> arg3<span class="c_yellow">)</span>
+<span class="c_green">-- Do: setup initial data</span>
+<span class="c_yellow">local function</span> Main<span class="c_yellow">(...)</span>
+	<span class="c_green">-- Do: setup more initial data</span>
+	<span class="c_yellow">local function</span> unk<span class="c_yellow">(...)</span> <span class="c_green">-- handle VARARGS?</span>
+	<span class="c_yellow">local function</span> InterpretFunc<span class="c_yellow">()</span>
+		<span class="c_yellow">while true do</span>
+			<span class="c_green">-- Do: interpret Luraph bytecode</span>
+		<span class="c_yellow">end</span>
+	<span class="c_yellow">end</span>
+	<span class="c_green">-- Do: error handling</span>
+<span class="c_yellow">end</span>
+setfenv<span class="c_yellow">(</span>Main<span class="c_yellow">,</span> env<span class="c_yellow">)</span>
+<span class="c_yellow">return</span> Main
+<span class="c_yellow">end</span>
+
+<span class="c_green">-- NOTE: here is where it all goes into action</span>
+<span class="c_yellow">local</span> unpackedData <span class="c_yellow">=</span> LPH_UnpackData<span class="c_yellow">()</span> <span class="c_green">-- NOTE: Just breakpoint this and dump the 'unpackedData' table</span>
+<span class="c_yellow">return</span> LuraphInterpreter<span class="c_yellow">(</span>unpackedData<span class="c_yellow">,</span> env<span class="c_yellow">)()</span>
+<span class="c_yellow">end</span>
+VMRun<span class="c_yellow">(</span><span class="c_pink">"LPH!42069<span class="c_green">&lt;...></span>"</span><span class="c_yellow">,</span> getfenv<span class="c_yellow">())</span> <span class="c_green">-- invoke Luraph VM</span>
 							</pre>
 							</p>
 							<p>
@@ -414,12 +414,12 @@
 							<p>
 							In the next blog post, I will attempt to create my own virtualization tool based on everything I have learned from the past few articles. My goal is to provide a custom obfuscation tool based on the knowledge obtained from this research.
 							<!--
-							In <u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u>, I will attempt to create my own virtualization tool based on everything I have learned from the past few articles. My goal is to provide a custom obfuscation tool based on the knowledge obtained from this research.
+							In <u><a href="https://ferib.dev/blog/lua-devirtualization-part-4-custom-virtualization">Part 4: Custom Obfuscation</a></u>, I will attempt to create my own virtualization tool based on everything I have learned from the past few articles. My goal is to provide a custom obfuscation tool based on the knowledge obtained from this research.
 							-->
 							</p>
 							<p style="text-align: right">
 							<!--
-							<b>Next article: </b><u><a href="https://ferib.dev/blog.php?l=post/Lua_Devirtualization_Part_4_Custom_Obfuscation">Part 4: Custom Obfuscation</a></u>
+							<b>Next article: </b><u><a href="https://ferib.dev/blog/lua-devirtualization-part-4-custom-virtualization">Part 4: Custom Obfuscation</a></u>
 							-->
 							<b>Next article: </b><code>Coming Soon</code>
 							</p>

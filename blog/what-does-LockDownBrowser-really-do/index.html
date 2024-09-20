@@ -43,51 +43,51 @@
 							After looking into ``LockDownBrowser.dll`` I found the following function that is responsible for initializing the hooks in LockDownBrowser:
 							</p>
 							<pre>
-							int CLDBDoSomeStuff(int *flag)
-							{
-								int result = 0x0;
-								bool doFirstMouseHook = (*flag >> 7) & 1;   //true if 7th bit is set
-								
-								if((*flag >> 6) & 1){                       //checks if 6th bit is set
-									//initialize hooks
-									KeyboardHookHandle = SetWindowsHookExA(13, KeyboardCallbackFuncPtr, mhod, 0);   //WH_KEYBOARD_LL
-									ShellHookHandle = SetWindowsHookExA(10, ShellCallbackFuncPtr, mhod, 0);         //WH_SHELL
-									if(doFirstMouseHook){
-										MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr_1, hmod, 0);    //WH_MOUSE
-									}else{
-										MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr, hmod, 0);      //WH_MOUSE
-									}
-									if(KeyboardHookHandle){
-										result = 0x0400;
-									}
-									if(ShellHookHandle){
-										result += 0x1000;
-									}
-									int temp = result + 0x0800;
-									if(!MouseHookHandle){
-										temp -= 0x0800;
-									}
-									*flag += 2 * temp;
-									result = temp;
-								}else{
-									//remove hooks if they are set
-									if(KeyboardHookHandle){
-										UnhookWindowsHookEx(KeyboardHookHandle)
-										KeyboardHookHandle = 0;
-									}
-									if(ShellHookHandle){
-										UnhookWindowsHookEx(ShellHookHandle);
-										ShellHookHandle = 0;
-									}
-									if(MouseHookHandle)
-									{
-										UnhookWindowsHookEx(MouseHookHandle);
-										MouseHookHandle = 0;
-									}
-									result = 0x0;
-								}
-								return result; //indicates which hooks are set
-							}
+int CLDBDoSomeStuff(int *flag)
+{
+	int result = 0x0;
+	bool doFirstMouseHook = (*flag >> 7) & 1;   //true if 7th bit is set
+	
+	if((*flag >> 6) & 1){                       //checks if 6th bit is set
+		//initialize hooks
+		KeyboardHookHandle = SetWindowsHookExA(13, KeyboardCallbackFuncPtr, mhod, 0);   //WH_KEYBOARD_LL
+		ShellHookHandle = SetWindowsHookExA(10, ShellCallbackFuncPtr, mhod, 0);         //WH_SHELL
+		if(doFirstMouseHook){
+			MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr_1, hmod, 0);    //WH_MOUSE
+		}else{
+			MouseHookHandle = SetWindowsHookExA(7, MouseCallbackFuncPtr, hmod, 0);      //WH_MOUSE
+		}
+		if(KeyboardHookHandle){
+			result = 0x0400;
+		}
+		if(ShellHookHandle){
+			result += 0x1000;
+		}
+		int temp = result + 0x0800;
+		if(!MouseHookHandle){
+			temp -= 0x0800;
+		}
+		*flag += 2 * temp;
+		result = temp;
+	}else{
+		//remove hooks if they are set
+		if(KeyboardHookHandle){
+			UnhookWindowsHookEx(KeyboardHookHandle)
+			KeyboardHookHandle = 0;
+		}
+		if(ShellHookHandle){
+			UnhookWindowsHookEx(ShellHookHandle);
+			ShellHookHandle = 0;
+		}
+		if(MouseHookHandle)
+		{
+			UnhookWindowsHookEx(MouseHookHandle);
+			MouseHookHandle = 0;
+		}
+		result = 0x0;
+	}
+	return result; //indicates which hooks are set
+}
 							</pre>
 							<i>Note: The following code is heavily modified to make it nice looking pseudocode.</i> 
 							
@@ -118,23 +118,23 @@
 							First of all, we have to create a code cave, this is the one I will be using:
 							</p>
 							<pre>
-							push ebp
-							mov ebp, esp
-							push eax
-							mov eax, arg_ptr    //pointer with value: 0x00 //use 0x1C00 if you want to enable all hooks
-							push eax
-							push LockDownBrowser.CLDBDoSomeStuff()
-							pop eax
-							call eax
-							push 0x1F4          //(500)
-							push kernel32.sleep
-							pop eax
-							call eax
-							jmp                 //jump back to "mov eax, arg ptr" to repeat
-							pop eax
-							mov esp,ebp
-							pop ebp
-							ret
+push ebp
+mov ebp, esp
+push eax
+mov eax, arg_ptr    //pointer with value: 0x00 //use 0x1C00 if you want to enable all hooks
+push eax
+push LockDownBrowser.CLDBDoSomeStuff()
+pop eax
+call eax
+push 0x1F4          //(500)
+push kernel32.sleep
+pop eax
+call eax
+jmp                 //jump back to "mov eax, arg ptr" to repeat
+pop eax
+mov esp,ebp
+pop ebp
+ret
 							</pre>
 							<p>
 							In my code cave, I have added a loop that should call the cleanup function every 500 milliseconds to make sure it won't turn itself back on.
