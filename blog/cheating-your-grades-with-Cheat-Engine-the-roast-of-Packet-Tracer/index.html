@@ -13,7 +13,265 @@
 			<div class="post-content">
 				<div contenteditable="false" class="fancy-box readability">
 					<article>
-					
+						<header>
+							<h1>Cheating Your Grades with Cheat Engine: The Roast of Packet Tracer <span class="blogpost-date">26/10/2020</span></h1>
+							<p>
+							I have always been fascinated by computers and software in general. In my daily life, I face a lot of software and ask myself how those systems are made and how they work. A couple of years ago when I joined my first college I faced a software program called "Packet Tracer". This program was not only used in class to let us exercise network configuration, but it would also be used for our networking exam.
+							</p>
+							</header>
+							<p>
+							And that's when everything got a lot more interesting. After I found out that the software is used as an official exam I had to look at how it works and how secure it is. But after a quick look, I noticed there wasn't much protection at all. Did the developers forgot to put it in, or did they think students at high school/college aren't capable of reversing such software?</p>
+							<p>
+							We may never know the reason why there is no proper security in place, but I can tell you, this student over here nailed it! I managed to exploit the software in multiple ways, resulting in (almost) instant completion of the exam or other malicious acts.
+							</p>
+							<p>
+							<h2>What is Packet Tracer?</h2>
+							</p>
+							<p>
+							Like I said before, Packet Tracer is a tool that's used for examination. The tool is developed by the company named Cisco and they seem to advertise it as a free tool for school/students to help teach students about configuring networks and all.
+							</p>
+							<p>
+							As you may know, Cisco is also a hardware vendor... have a close look at Packet Tracer and you will see that they only have Cisco related hardware in their virtual environment. This makes sense knowing that the software is free. It's a sneaky marketing strategy to advertise their hardware like that to students that haven't got the chance yet to look at competing companies.</p>
+							<p>
+							<i>More info about Packet Tracer can be found at <u><a href="https://www.netacad.com/courses/packet-tracer">https://www.netacad.com/courses/packet-tracer</a></u></i>
+							</p>
+							<p>
+							Fun fact, when you download and open Packet Tracer, a login screen shows up forcing you to log in. You can simply "bypass" the login screen by temporarily disabling your internet connection and Packet Tracer won't show the login screen anymore, allowing you to use the software without the need for valid login credentials.</p>
+							<i>We could also patch the login screen so it would never show up, but then we basically "crack" the software, which is kind of illegal.</i>
+							<p>
+							<h2>Let's get Hacking</h2>
+							</p>
+							<p>
+							While looking at the files that are located in the Packet Tracer folder, I noticed some DLLs contain "Qt5" in their names. This means Packet Tracer is most likely using the Qt5 framework.
+							</p>
+							<p>
+							After attempting to reverse the file saving/loading I noticed that the qt5 framework had a SQL library that was used inside Packet Tracer. The first thing that came to mind was hooking those functions to find out what packet tracing is doing with them. One function took my attention after I had a rough look at the exported functions from the Qt5Sql.dll, the one named "exec". There are two of those functions, so I googled for "Qt5Sql" and found the official documentation for the function at 
+							<a href="https://doc.qt.io/qt-5/qsqlquery.html#exec"><u>https://doc.qt.io/qt-5/qsqlquery.html#exec</u></a>
+							</p>
+							<p>
+							<img src="/img/blog/packettracer_cheatengine_dll_exec_import.png" alt="Cheat Engine Qt5 DLL Export Symbols" width="446" height="153">
+							<pre>
+							bool	exec(const QString &query)
+							bool	exec()
+							</pre>
+							</p>
+							<p>
+							Before we can write any code we do have to find out what Packet Tracer does with those functions, so I just slap a breakpoint on the start of both functions and have a look at which arguments (if any) they have. We see that only one of the "exec()" functions use arguments, according to the Qt5 documentation the one without arguments requires the function "prepare(const QString &query)" to be called before the arguments less "exec()" in order to execute something.
+							</p>
+							<p>
+							Also note that there is another function called "execBatch(QSqlQuery::BatchExecutionMode mode = ValuesAsRows)" which is used to execute multiple SQL queries, but spoiler alert... Packet Tracers doesn't seem to have that one in its import tables, meaning it's not being used (or there must be some nasty obfuscation, but that's unlikely to be the case).</p>
+							<p>
+							For real, there is no obfuscation nor any kind of anti-debugging features present inside Packet Tracer... It's Free Real Estate! <i>(for hackers)</i>
+							</p>
+							<p>
+							Alright, back to PacketTracer, I'm about to open up my favorite debugging software -- Cheat Engine -- and start breakpointing the SQL execution functions to see what's going. Once the breakpoint is placed we have to trigger it, this should be done by triggering some kind of event (such as a button click in Packet Tracer) that requires read/write from the SQL database. My first guess would be opening a .pka file (aka Packet Tracer Activity file), such files contain information about the exercise, the virtual environment, and most importantly, they must somehow contain the answers. Packet Tracer gives live feedback about the current status of the environment, it will increase or decrease the current score depending on which configuration you modify.
+							</p>
+							<p>
+							The ultimate goal for an attacker would be extracting the answers from the .pka file and then solving the current exercise with those answers. In theory, this should be possible since none of the answers are stored on a server since the application does not require an internet connection.
+							</p>
+							<h2>Writing some code</h2>
+							<p>
+							To better analyze what the function is doing we could write a quick hook using Cheat Engine "Auto Assabmle" feature. The feature allows you to write assembly instructions, has support for labels, and can do neat things such as allocating memory that then can be used by our hook.
+							</p>
+							<p>
+							If you thought that Cheat Engine was just for searching values and then modifying those then you are wrong ;).</p>
+							<p>
+							First, we open up the Memory View.
+							Then click on to tools > Auto Assembly and a new window should pop up. In this window, we can write assembly code and then write it into memory by pressing the "Execute" button.
+							</p>
+							<p>
+							<img src="/img/blog/packettracer_cheatengine_memory_view_auto_assemble.png" alt="Cheat Engine Auto Assemble windows" width="946" height="613">
+							</p>
+							<p>
+							<img src="/img/blog/packettracer_cheatengine_exec_autoassamle.png" alt="Cheat Engine Auto Assemble Open" width="509" height="507">
+							</p>
+							<p>
+							Since the scope of this article is not about Cheat Engine I won't go into great details about what and how this works, but if you do want to learn more about it you may find this link helpful: <a href="https://wiki.cheatengine.org/index.php?title=Cheat_Engine:Auto_Assembler"><u>https://wiki.cheatengine.org/index.php?title=Cheat_Engine:Auto_Assembler</u></a></p>
+							<p>
+							Now copy the code below and past it in the Auto Assembler window.
+							</p>
+							<p>
+							<pre class="code_box">
+							<span class="c_brown">globalalloc</span>(newmem,<span class="c_purple">2048</span>,<span class="c_purple">"Qt5Sql.dll"+2050</span>)
+							<span class="c_brown">globalalloc</span>(sql_query,<span class="c_purple">1024</span>)
+							<span class="c_brown">label</span>(returnhere)
+							<span class="c_brown">label</span>(originalcode)
+							<span class="c_brown">label</span>(exit)
+							
+							<span class="c_blue">newmem</span>:		   <span class="c_green">// start of our hook</span>
+							push <span class="c_yellow">rax</span>           
+							push <span class="c_yellow">rcx</span>
+							mov <span class="c_yellow">rax</span>, sql_query
+							mov <span class="c_yellow">rcx</span>, [<span class="c_yellow">rdx</span>]
+							add <span class="c_yellow">rcx</span>,<span class="c_purple">18</span>         <span class="c_green">// offset to the acutal SQL string</span>
+							mov [<span class="c_yellow">rax</span>],<span class="c_yellow">rcx</span>
+							pop <span class="c_yellow">rcx</span>
+							pop <span class="c_yellow">rax</span>
+							
+							<span class="c_blue">originalcode</span>:
+							mov <span class="c_yellow">rax</span>,<span class="c_yellow">rsp</span>        <span class="c_green">// original bytes (overwritten by our hook)</span>
+							push <span class="c_yellow">rbp</span>
+							push <span class="c_yellow">r15</span>
+							
+							<span class="c_blue">exit</span>:
+							jmp returnhere
+							
+							<span class="c_blue">"Qt5Sql.dll"+2050</span>:
+							jmp newmem
+							nop
+							
+							<span class="c_blue">returnhere</span>:
+							
+							</pre>
+							</p>
+							<p>
+							The above code may look a bit complex, but all it does is create a hook at location "Qt5Sql.dll"+2050, which is the Qt5 SQL exec() function that we have breakpointed previously.
+							</p>
+							<p>
+							We investigated that function and noticed that the second argument (rdx) holds the Qt5 String structure, but since the actual array of chars is located at [rdx+0x18], we make use of "add rcx,18" to obtain our string. The SQL query string pointer is then moved into the "sql_query" address (this address is allocated by Cheat Engine) and the hook then continues the normal execution of the function.
+							</p>
+							<p>
+							Now go back to Cheat Engine's main window, click on "Add Address Manually" and then enter "sql_query" as the Address. Cheat Engine is smart enough to recognize that "sql_query" represents the address that we have (global)allocated by executing "globalalloc(sql_query,1024)" in our Auto Assembler script. Do not forget to set the address type to "Text" and enable the checkbox "Unicode", this is done so that Cheat Engine knows it's looking at a wchar string.
+							</p>
+							<p>
+							<img src="/img/blog/packettracer_cheatengine_main_addaddress.png" alt="Cheat Engine Add Address Window" width="272" height="288">
+							</p>
+							<p>
+							Now the next time that the Qt5Sql.QSqlQuery::exec() function gets executed we will see the SQL query gets written to the "sql_query" location. This will happen so fast that you won't be able to see all the queries going through. To fix this we can place a breakpoint under our hook so that the process is paused right after writing the SQL query to the "sql_query" address.</p>
+							<p>
+							In the image below you can see exactly where I have placed my breakpoint. 
+							<img src="/img/blog/packettracer_cheatengine_exechook_breakpoint.png" alt="Cheat Engine Breakpoint Memory View" width="679" height="271">
+							</p>
+							<p>
+							And this is how the "sql_query" address in the Cheat Engine table looks like after the breakpoint got hit. 
+							<img src="/img/blog/packettracer_cheatengine_main_hooksql.png" alt="Cheat Engine Address Hook Result Table" width="973" height="84">
+							</p>
+							<p>
+							<h3>Analyzing the SQL queries</h3>
+							</p>
+							<p>
+							Now we can finally start analyzing all the incoming SQL queries we are getting. I went to Packet Tracer and loaded in a new .pka file, my breakpoint got triggered almost immediately. Below are some of the queries I got right after my .pka got loaded:
+							</p>
+							<p>
+							<hr>
+							<pre class="code_box">
+							<span class="c_green">//first phase</span>
+							<span class="c_blue">DROP TABLE</span> IF <span class="c_blue">EXISTS</span> answer;
+							<span class="c_blue">BEGIN</span>
+							<span class="c_blue">CREATE TABLE</span> <span class="c_pink">`</span>answer<span class="c_pink">` </span>( <span class="c_pink">`</span>id<span class="c_pink">`</span> TEXT NOT NULL UNIQUE, <span class="c_pink">`</span>device_name<span class="c_pink">`</span> TEXT, <span class="c_pink">`</span>node_path<span class="c_pink">` </span>TEXT, <span class="c_pink">`</span>value<span class="c_pink">`</span> TEXT, <span class="c_pink">`</span>points<span class="c_pink">`</span> NUMERIC, <span class="c_pink">`</span>correct<span class="c_pink">`</span> NUMERIC, <span class="c_pink">`</span>trace<span class="c_pink">`</span> TEXT, <span class="c_pink">`</span>override<span class="c_pink">`</span> NUMERIC DEFAULT 0, PRIMARY KEY(<span class="c_pink">`</span>id<span class="c_pink">`</span> ));
+							<span class="c_blue">CREATE TABLE</span> <span class="c_pink">`</span>user<span class="c_pink">` </span>( <span class="c_pink">`</span>id<span class="c_pink">`</span> TEXT NOT NULL UNIQUE, <span class="c_pink">`</span>device_name<span class="c_pink">`</span> TEXT, <span class="c_pink">`</span>node_path<span class="c_pink">` </span>TEXT, <span class="c_pink">`</span>value<span class="c_pink">`</span> TEXT, PRIMARY KEY(<span class="c_pink">`</span>id<span class="c_pink">`</span> ));
+							
+							<span class="c_green">//second phase</span>
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:GigabitEthernet0/0.20:IP Address"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:Ports:GigabitEthernet0/0.20:IP Address"</span>,<span class="c_yellow">"172.16.20.1"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:GigabitEthernet0/0.40:Subnet Mask"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:Ports:GigabitEthernet0/0.40:Subnet Mask"</span>,<span class="c_yellow">"255.255.255.0"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"209.165.200.226"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Enable Secret"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:Enable Secret"</span>,<span class="c_yellow">"$1$mERr$hx5rVt7rPNoS4wqbXKX7m0"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Console Line:Password"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:Console Line:Password"</span>,<span class="c_yellow">"cisco"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">INSERT OR REPLACE INTO</span> answer (id, device_name, node_path, value, points)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:VTY Lines:0:Password"</span>,<span class="c_yellow">"R1Name"</span>,<span class="c_yellow">"R1Name:VTY Lines:0:Password"</span>,<span class="c_yellow">"cisco"</span>,<span class="c_yellow">"1"</span>);
+							...
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name"</span>;
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Ports"</span>,<span class="c_yellow">""</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Ports"</span>;
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:Serial0/0/0"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Ports:Serial0/0/0"</span>,<span class="c_yellow">""</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Ports:Serial0/0/0"</span>;
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"0.0.0.0"</span>);
+							
+							
+							<span class="c_green">//third phase</span>
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Ports:Serial0/0/0:IP Address"</span>,<span class="c_yellow">"0.0.0.0"</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Enable Secret"</span>;
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>user<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Enable Secret"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Enable Secret"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Enable Secret"</span>,<span class="c_yellow">""</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Enable Secret"</span>;
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>user<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Enable Secret"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Host Name"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Host Name"</span>,<span class="c_yellow">"Router"</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Host Name"</span>;
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>user<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Host Name"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:Host Name"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:Host Name"</span>,<span class="c_yellow">"Router"</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Host Name"</span>;
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>user<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:Host Name"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:DNS"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:DNS"</span>,<span class="c_yellow">""</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:DNS"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:DNS"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:DNS"</span>,<span class="c_yellow">""</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:DNS"</span>;
+							
+							<span class="c_blue"><span class="c_blue">INSERT OR REPLACE INTO</span> user</span>(id, device_name, node_path, value)<span class="c_blue"> VALUES</span>(<span class="c_yellow">"Network:R1Name:DNS:IP Domain Lookup"</span>,<span class="c_yellow">"R1Name"</span>, <span class="c_yellow">"R1Name:DNS:IP Domain Lookup"</span>,<span class="c_yellow">"1"</span>);
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>answer<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:DNS:IP Domain Lookup"</span>;
+							<span class="c_blue">select </span><span class="c_pink">*</span><span class="c_blue"> from </span>user<span class="c_blue"> WHERE </span>id<span class="c_pink">=</span><span class="c_yellow">"Network:R1Name:DNS:IP Domain Lookup"</span>;
+							
+							<span class="c_green">//final phase</span>
+							<span class="c_blue">select </span><span class="c_blue">SUM</span>(points) <span class="c_blue">from</span> answer;
+							<span class="c_blue">select </span><span class="c_blue">SUM</span>(points) <span class="c_blue">from</span> answer <span class="c_blue">where</span> correct<span class="c_pink">=</span><span class="c_purple">1</span>;
+							<span class="c_blue">select </span><span class="c_blue">count</span>(<span class="c_pink">*</span>) <span class="c_blue">from</span> answer;
+							<span class="c_blue">select </span><span class="c_blue">count</span>(correct) <span class="c_blue">from</span> answer <span class="c_blue">where</span> correct<span class="c_pink">=</span><span class="c_purple">1</span>;
+							</pre>
+							</p>
+							<p>
+							According to the first few SQL queries, it seems like they are removing the current progress by deleting existing tables and creating new ones. After that's done they seem to fill the new tables with whatever is inside the .pka file. You can see that the "answer" table contains a row called "value", which seems to be the answer for that entity. When looking at the third phase I can see that both "answer" and "user" tables have the same "id" property, the "user" also has a row called "value", which later on seems to be used to store the answer the user enters.
+							</p>
+							<p>
+							To me, it looks like the "user" table holds the current environment that the user works in. The "answer" table seems to be compared against the "user" table to real-time evaluate the user on his current progress.
+							</p>
+							<p>
+							The final phase seems to be used to calculate the overall score (which is shown in percent).</p>
+							<p>
+							<h3>Confirming my theory</h3>
+							Now the time has come to confirm all the guesses we made after looking into the SQL queries.
+							Injecting SQL queries and watching how Packet Tracer behaves would be a great way to understand what's going on.
+							</p>
+							<p>
+							We might even be able to execute a query like <tt>"UPDATE answer SET correct=1"</tt> and call it a day, but I doubt it will be that easy.
+							Even if we could beat it with a single query then we still have to execute it, which, seems like a pain if you have a close look at the <tt>Qt5Sql.QsqlQuery::exec()</tt> function.
+							This function requires some kind of database connection handle and a Qt5 String structure, so instead of executing our own SQL query, we use the hook to overwrite the current SQL querie and replace it with a malicious one.
+							</p>
+							<p>
+							<h2>Beating the systems</h2>
+							</p>
+							<p>
+							Okay now that we figured all of this out, we can try to modify a SQL query to achieve my goal. My first attempt was to simply update all answer rows and set the column "correct" to true using the following SQL query:
+							<pre>UPDATE answer SET correct=1 WHERE 1</pre> 
+							Sadly, this didn't work, so I came up with another idea. Since then "answer" table holds the answer in column "value" and the "user" table holds the current answer in the "value" column I decided to use a more complex query that moves all values from "answer" into "user" where the ID matches using the following SQL query:
+							</p>
+							<p>
+							<tt>UPDATE user INNER JOIN answer &#8203;ON user.id = answer.id &#8203;SET user.value = answer.value &#8203;WHERE 1</tt> 
+							</p>
+							<p>
+							And there we go, the score has successfully changed to 100% and all the tasks are completed!
+							</p>
+							<p>
+							Since the purpose of this article is to prevent examination fraud in Packet Tracer, I will not demonstrate how the malicious SQL query got injected.
+							</p>
+							<p>
+							<p>
+							<h3>How to prevent this?</h3>
+							</p>
+							<p>
+							It's impossible to access the memory of a process that's running on a higher privilege level (such as an administrator).
+							</p>
+							<p>
+							That means that we can protect Packet Tracer memory by having an authorized person (such as a lector) start Packet Tracer as administrator.
+							Once Packet Tracer is started, the authorized person should plugin a USB containing the .pka file, load the file into Packet Tracer and remove the USB after it's ready.
+							</p>
+							<p>
+							By doing the above steps we not only prevent a possible attacker from extracting the answers of a .pka file, but we also make it impossible for the attacker to modify (patch) the source code of Packet Tracer,
+							which might be used to bypass the Activity Wizard or load malicious DLL's that exploit the Qt5 SQL execution function(s) to extract answers from the current exercise.
+							<br><i>(One of my previous projects overwrites the password of Packet Tracer's Activity Wizard and allows the attack to inject malicous Javascript into the Javascript environment of Packet Tracer: <a href="https://github.com/ferib/PacketTracerRecovery"><u>https://github.com/ferib/PacketTracerRecovery</u></a>)</i>
+							</p>
+							<p>
+							This example may not be possible due to the current Covid-19 situation, but there are plenty of other ways to limit the access a student gets to Packet Tracer.
+							Tools such as Thin Clients, VNC Viewer, and other applications can be used to sandbox the memory of Packet Tracer and prevent attacks similar to the ones I have shown.
+							</p>
+							<h2>Conclusion</h2>
+							<p>
+							Tools such as Packet Tracer are really nice tools that help both students and teachers in the learning process.
+							Due to the lack of security in some of those tools, students can exploit them very easily in order to cheat their exams.
+							Therefore it is very important for educational institutions to use those tools correctly to prevent as much exam fraud as possible.
+							</p>
 					</article>
 				</div>
 			</div>
