@@ -85,9 +85,9 @@
                         <p>To find out the data transmitted from the server, I am checking the TrinityCore private server, which implemented a very decent equivalent of the network packets, including the ones done during trade.</p>
                         <p>First, the <code>SMSG_TRADE_UPDATE</code> packet, which seems to be received when the remote player is updating — adding/removing — items from the trade window.</p>
                         <img src="../../img/blog/wow_tc_trade_handler_1.png" />
-                        <p>The most important field here is the ReadTradeItem, which is shown here.</p>
+                        <p>The most important field here is the <code>ReadTradeItem</code>, which is shown here.</p>
                         <img src="../../img/blog/wow_tc_trade_handler_2.png" />
-                        <p>TODO: more details backing this!!</p>
+                        <p>Some extra research may be needed, but this is looking very promising so far.</p>
                         <h3>Trade info: game Lua API</h3>
                         <p>Good, now we still need to be able to verify certain data in-game during the trade, as Bob needs to be able to verify the incoming trade item as a Bitcoin redeemable one. </p>
                         <p>So far, I have found two sets of APIs used for trading. First, we have <code>C_TooltipInfo.GetTradePlayerItem(index)</code> and <code>C_TooltipInfo.GetTradeTargetItem(index)</code>. Very interesting to see as it contains the guid of the item. However, it is important to note that, after the item is traded, the guid of an item is replaced with a new one, as the server destroys the item from Alice to create a new item in Bob's inventory. Which would mean that the item can only be traded once.</p>
@@ -119,8 +119,8 @@
                         <p>Charlie will now grab a “dummy” item from her inventory and obtain the <code>itemLink</code> information.</p>
                         <img src="../../img/blob/wow_item_link_example.png" />
                         
-                        <p>The “itemLink” for this item is <code>|cnIQ3:|Hitem:201945::::::::80:64::13:4:8851:8852:9403:9415:6:28:2164:29:36:30:32:38:6:40:844:49:206041::::Player-1301-0C2AB0CB:|h[Pioneer's Practiced Belt |A:Professions-ChatIcon-Quality-Tier3:17:18::1|a]|h|r</code>, and contains information such as <code>itemId</code>, <code>creatorGUID</code>, <code>enchantId</code> <a href="https://wowpedia.fandom.com/wiki/ItemLink">and some other information</a>.</p>
-                        <p>Charlie now turns this into this sha256 hash <code>0050d84e8f19c0e2aebbb6903eccb17904609e2b053166cfff52bc893da42092</code>, which represents the secret <code>s</code>, and is then hashed again to compute H. Charlie now asks Alice to create an HTLC with given H and to return the txid when done.</p>
+                        <p>The “itemLink” for this item is <code>|cnIQ3:&ZeroWidthSpace;|Hitem:201945:&ZeroWidthSpace;:::::::80:64:&ZeroWidthSpace;:13:4:8851:&ZeroWidthSpace;8852:9403:&ZeroWidthSpace;9415:6:28:&ZeroWidthSpace;2164:29:36:30:&ZeroWidthSpace;32:38:6:40:844:&ZeroWidthSpace;49:206041:::&ZeroWidthSpace;:Player-1301-0C2AB0CB:&ZeroWidthSpace;|h[Pioneer's Practiced Belt |A:&ZeroWidthSpace;Professions-&ZeroWidthSpace;ChatIcon-&ZeroWidthSpace;Quality-&ZeroWidthSpace;Tier3:&ZeroWidthSpace;17:18::1&ZeroWidthSpace;|a]&ZeroWidthSpace;|h|r</code>, and contains information such as <code>itemId</code>, <code>creatorGUID</code>, <code>enchantId</code> <a href="https://wowpedia.fandom.com/wiki/ItemLink">and some other information</a>.</p>
+                        <p>Charlie now turns this into this sha256 hash <code>0050d84e&ZeroWidthSpace;8f19c0e2&ZeroWidthSpace;aebbb690&ZeroWidthSpace;3eccb179&ZeroWidthSpace;04609e2b&ZeroWidthSpace;053166cf&ZeroWidthSpace;ff52bc89&ZeroWidthSpace;3da42092</code>, which represents the secret <code>s</code>, and is then hashed again to compute H. Charlie now asks Alice to create an HTLC with given H and to return the txid when done.</p>
                         
                         <p>Alice proceeds by creating the HTLC with given <code>H</code>, funds it with 0.1 Bitcoin, and forwards the <code>txid</code> to Charlie.</p>
                         <p>Charlie now verifies the <code>txid</code> on the Bitcoin blockchain, wraps the in-game item with a gift wrapper, and mails the item, along with a PGP-signed message, to her in-game mailbox.</p>
