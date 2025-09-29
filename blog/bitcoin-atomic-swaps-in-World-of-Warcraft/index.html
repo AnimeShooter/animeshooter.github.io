@@ -24,7 +24,7 @@
 				<div contenteditable="false" class="fancy-box readability">
 					<article>
 						<header>
-							<h1>Bitcoin atomic swaps in World of Warcraft <span class="blogpost-date">10/10/2025</span></h1>
+							<h1>Bitcoin atomic swaps in World of Warcraft <span class="blogpost-date">1/10/2025</span></h1>
 							<p>Online video games like MMORPGs create complex in-game economies, largely driven by player activity. However, values of in-game items and currencies often fluctuate unpredictably, impacted by automation and new game content.</p>
                             <img src="../../img/blog/wow_gold_price.png" />
                             <p>To address this, I began considering if a stable, inflation-resistant system like Bitcoin could serve as a reliable store of value for in-game assets. Swapping in-game assets for Bitcoin might shield players from unpredictable in-game economic swings.</p>
@@ -108,8 +108,8 @@
                         </p>
                         <p>I was actually giving up after seeing that the item guid's weren't permanent, as items get destroyed and re-created when the trade completes. But after trying various methods like AH, mailbox, pet cages, Lockboxes, and so on, I found out some interesting information on gift wrappers.</p>
                         <p>The thing about gift wrappers is that, when you gift-wrap an item, a seemingly new item will be created in your inventory, but it's actually just the same item, as the guid of the item doesn't change. I thought I could let Bob know that gift gift-wrapped item with guid X is the item containing the secret <code>s</code>, so once Bob completes the trade, he can unwrap the gift and hash the new item guid to compute secret <code>s</code> and collect his Bitcoins.</p>
-                        <p>However, I noticed that items have a bunch of properties, including a <code>creatorGUID</code>, <code>itemId</code>, <code>enchantId</code>, gem information, and a whole lot more. All of this information is kept private due to the gift wrapper and can only be revealed by the item owner.</p>
-                        <p>The final catch is that Bob must be able to verify the item during the trade window, which I assumed wouldn't be possible without the item guid. But it seems that there is a text in the tooltip saying “<Gift from Taarthouder>”, which is my player name. I believe this can be used to validate the item.</p>
+                        <p>However, I noticed that items have a bunch of properties, including a <code>creatorGUID</code>, <code>itemId</code>, <code>enchantId</code>, gem information, and a whole lot more. All of this information is kept private due to the gift wrapper and can only be revealed by the item owner after unwrapping the item.</p>
+                        <p>The final catch is that Bob must be able to verify the item during the trade window, which I assumed wouldn't be possible without the item guid. But it seems that there is a text in the tooltip saying “&lt;Gift from Taarthouder&gt;”, which is my unique player name. I believe this can be used to verify the item.</p>
                         <img src="../../img/blog/wow_red_ribboned_gift.png" />
 
                         <h2>Complete setup</h2>
@@ -147,7 +147,7 @@
                         <p><i>More research is needed to verify the entropy of the itemLink. There are only so many tradable <code>itemId</code>'s, and the creator guid is pretty much 32-bit incremental. This begs the question of how many real bits we have randomised and if we could enhance this with item enchants or gems. Worst case, we may use up to 6 items to get as close to 256-bit entropy as possible. However, for a 30-day duration item, we should be fine with 64 bits of entropy.</i></p>
                         
                         <h2 id="Conclusion">Conclusion</h2>
-                        <p>We were able to turn an in-game item into a Bitcoin redeemable item by clever usage of HTLC and gift-wrapped items. However, both parties have to trust Charlie as the initial setup of the item must be done by a third party. After the setup is done, a normal in-game trade can happen to exchange the item so Bob can unwrap the item, and obtain his secret to claim his Bitcoins.</p>
+                        <p>We were able to turn an in-game item into a Bitcoin redeemable item by clever usage of HTLC and gift-wrapped items. However, this is not a <i>pure</i> atomic swap as both parties have to trust Charlie as the initial setup of the item must be done by a third party. After the setup is done, a normal in-game trade can happen to exchange the item so Bob can unwrap the item, and obtain his secret to claim his Bitcoins.</p>
                         <p>Further research is still needed to see how secure secret <code>s</code> can be, and what the ideal time-out would be to prevent Bob from brute-forcing these secrets.</p>
 					</article>
 				</div>
