@@ -38,7 +38,7 @@ User-mode code execution! This can't be too hard, right?
 Unfortunately, Android (nor any other GNU/Unix) doesn't have what Windows NT has... <code>CreateRemoteThread</code>. 
 </p>
 <p>
-This <code>CreateRemoteThread</code> API is super handy as it allows for one process to <b>create a new thread inside another running process.</b> That combined with another API such as ReadProcessMemory and WriteProcessMemory — which, as the name suggest, allow to read/write memory from another running process. — comes in really handy to get code execution. We don't even need "administrator" (aka root) if the target process isn't running as "administrator" itself.
+This <code>CreateRemoteThread</code> API is super handy as it allows for one process to <b>create a new thread inside another running process.</b> That combined with another API such as <code>ReadProcessMemory</code> and <code>WriteProcessMemory</code> — which, as the name suggest, allow to read/write memory from another running process. — comes in really handy to get code execution. We don't even need "administrator" (aka root) if the target process isn't running as "administrator" itself.
 </p>
 <p>
 Back to Android, we lack such API's, but we can build creative workarounds.
@@ -70,7 +70,7 @@ Funny enough, this "bug" was later fixed, but caused some backlash as developers
 From Open to Write to Execute
 </h3>
 <p>
-The plan is simple, we <code>open()</code> on <code>/proc/PID/mem</code> using a rooted device so we can then call <code>write()</code> on a hot code path. We just need to <code>write()</code> a code cave that invokes dl<code>open()</code> exactly once.
+The plan is simple, we <code>open()</code> on <code>/proc/PID/mem</code> using a rooted device so we can then call <code>write()</code> on a hot code path. We just need to <code>write()</code> a code cave that invokes <code>dlopen()</code> exactly once.
 </p>
 <p>
 Spoiler alert, this exact idea of course already exists. On GitHub, user <a href="https://github.com/namazso">Namazso</a> already has <a href="https://github.com/namazso/linux_injector">a project named linux_injector</a> described as "A simple ptrace-less shared library injector for x64 Linux". However, thanks to Android not being fully POSIX-compliant, we can't just recompile it. Also, this one is for Intel x86_64, while most Android devices are using ARMv8 nowadays.
@@ -79,7 +79,7 @@ Spoiler alert, this exact idea of course already exists. On GitHub, user <a href
 Creating the <code>android_injector</code>
 </h2>
 <p>
-Time to create my own ptrace-less injector for Android specifically. I will try to keep this as simple as possible and just call <code>dlopen</code> op my own <code>.so</code> file. No fancy manual mapping or anything, we can rly just copy any <code>.so</code> file (e.g., <code>libstealth.so</code>) into <code>/data/data/&lt;bundleId>/files/libstealth.so</code> and then <code>dlopen("/data/data/&lt;bundleId>/files/libstealth.so", RTLD_NOW)</code> to have it load and execute code.
+Time to create my own ptrace-less injector for Android specifically. I will try to keep this as simple as possible and just call <code>dlopen</code> on my own <code>.so</code> file. No fancy manual mapping or anything, we can rly just copy any <code>.so</code> file (e.g., <code>libstealth.so</code>) into <code>/data/data/&lt;bundleId>/files/libstealth.so</code> and then <code>dlopen("/data/data/&lt;bundleId>/files/libstealth.so", RTLD_NOW)</code> to have it load and execute code.
 </p>
 <h3>
 The Codecave
@@ -140,7 +140,7 @@ int shellcode[] = {
 </pre>
 </p>
 <p>
-This ARMv8 assembly shouldn't be too hard to understand, all it really does is set this "global variable", make sure the "global variable" doesn't have the least significant bit set (bit 1), so it can set the bit and call <code>dl<code>open()</code></code> to guarantee we only load one instance of the <code>.so</code> library file.
+This ARMv8 assembly shouldn't be too hard to understand, all it really does is set this "global variable", make sure the "global variable" doesn't have the least significant bit set (bit 1), so it can set the bit and call <code>dlopen()</code> to guarantee we only load one instance of the <code>.so</code> library file.
 </p>
 <p>
 So what is the "global variable"? I had to take any writable location in the memory — executed code must respect page permissions — so I took libc's "timezone" export and temporarily used the least significant bit to store whether or not the hook has already been executed.
@@ -155,7 +155,7 @@ Fun fact, Android uses Bionic, which is one of the reasons why Android isn't ful
 The hooks themselves
 </h3>
 <p>
-For those who actually paid attention to the assembly, you may have noticed that I ain't really doing assembly and just use a hardcoded int[] to store instructions. You are correct, there is no need for a full dynamic assembly as I am good with static, hardcoded instructions. 
+For those who actually paid attention to the assembly, you may have noticed that I ain't really doing assembly and just use a hardcoded <code>int[]</code> to store instructions. You are correct, there is no need for a full dynamic assembly as I am good with static, hardcoded instructions. 
 </p>
 <p>
 Except for 3 types of instructions. There are some <code>MOV X0, X0</code> junk instructions all over the cave. They are there for a reason; they act as a placeholder. This sequence of 3 junk instructions will be replaced by a sequence of <code>ADRP</code>, <code>ADD</code>, and <code>BR</code> or <code>BLR</code>, respectively.
@@ -422,10 +422,10 @@ After the injection is done, all memory is restored, all fd's are closed, but tw
 Conclusion
 </h2>
 <p>
-We looked into how we can inject dynamic executables into a remote Android process while keeping a very low footprint. We did this using a lesser-known techniques that avoid the usage of ptrace so we can get code execution inside self-protected Android processes.
+We looked into how we can inject dynamic executables into a remote Android process while keeping a very low footprint. We did this using a lesser-known technique that avoids the usage of ptrace so we can get code execution inside self-protected Android processes.
 </p>
 <p>
-Despite leaving a small footprint behind during the injection process, we concluded that our <code>libTest.so</code> library is left naked in memory and can easily be spotted in the <code>/proc/PID/maps</code>. However, deciding which <code>.so</code> is side-loaded and which one came from the process itself seems like a difficult detection techniques, one which I have yet to see in a public protected Android application ;).
+Despite leaving a small footprint behind during the injection process, we concluded that our <code>libTest.so</code> library is left naked in memory and can easily be spotted in the <code>/proc/PID/maps</code>. However, deciding which <code>.so</code> is side-loaded and which one came from the process itself seems like a difficult detection technique, one which I have yet to see in a public protected Android application ;).
 </p>
                     </article>
 				</div>
