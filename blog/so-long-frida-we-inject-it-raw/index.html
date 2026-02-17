@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/style.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
+		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
+        
+        <meta property="og:title" content="Bitcoin atomic swaps in World of Warcraft"/>
+        <meta property="og:type" content="profile"/>
+        <meta property="og:description" content="The idea itself is very simple. Thanks to Bitcoin being a cryptocurrency, we can utilize a clever cryptographic mechanism to convert in-game items into actual Bitcoins. Once Alice has created such an in-game item, she can trade the in-game item with player Bob so he can then redeem the actual Bitcoins."/>
+        <meta property="og:url" content="https://ferib.dev/"/>
+        <meta property="og:image" content="https://ferib.dev/logo.png"/>
+        <meta property="og:image:type" content="image/png"/>
+        <meta property="og:image:width" content="600"/>
+        <meta property="og:image:height" content="600"/>
+        <meta property="og:image:alt" content="A 'not so good lookin' pumpkin"/>
+	</head>
+	<body>
+		<div class="container">
+			<div class="content" style="overflow: hidden;">
+				<a href="https://ferib.dev/"><img id="main-logo" class="LiftUp" src="https://ferib.dev/logo.png" alt="A 'not so good lookin' pumpkin" width="600" height="600"></a>
+			</div>
+			<div class="post-content">
+				<div contenteditable="false" class="fancy-box readability">
+					<article>
+						<header>
+<h1>.So Long, Frida — We Inject It Raw <span class="blogpost-date">17/02/2026</span></h1>
+<p>I launch my Android app, but it instantly crashes when I attach Frida. Similar behavior is observed when a debugger is attached. Oh no, the Android APK has runtime protection, and I'm not ready to re-compile Frida from source, nor do I feel like diving down the debugger/ptrace rabbit hole.</p>
+<!-- <img src="../../img/blog/wow_gold_price.png" /> -->
+                        </header>
+
+<h2>The hole I like.</h2>
+
+<p>
+User-mode code execution! This can't be too hard, right?
+</p>
+<p>
+Unfortunately, Android (nor any other GNU/Unix) doesn't have what Windows NT has... CreateRemoteThread. 
+</p>
+<p>
+This CreateRemoteThread API is super handy as it allows for one process to <b>create a new thread inside another running process.</b> That combined with another API such as ReadProcessMemory and WriteProcessMemory — which, as the name suggest, allow to read/write memory from another running process. — comes in really handy to get code execution. We don't even need "administrator" (aka root) if the target process isn't running as "administrator" itself.
+</p>
+<p>
+Back to Android, we lack such API's, but we can build creative workarounds.
+</p>
+<h3>
+Existing methods of code execution
+</h3>
+<p>
+Most code execution is done by (side)loading a "library.so" file, and the most common method to do this is either; Using ptrace to spawn a debugger threads and get code execution in the remote process. Or to modify an ELF file on disk and add the <code>LD_PRELOAD</code> command.
+</p>
+<p>
+Unfortunately, both are easily detected. A process may ptrace itself to prevent external ptrace, or it may detect the presence of ptrace one way or another as it leaves a rather big footprint behind. For the <code>LD_PRELOAD</code> to work, we need to re-package the APK as we modify the ELF files, which may also trigger a bunch of alarms.
+</p>
+<h3>
+Time to punch some holes
+</h3>
+<p>
+A long time ago, there was a "bug" in Linux that allowed a process to <code>write()</code> to any offset in <code>/proc/PID/mem</code> as long as <code>open()</code> returned a valid handle. Or in other words, <code>write()</code> does not respect the memory map permissions — seen in /proc/PID/maps — as it just blindly accepts the write requesting. Therefore, making it a good bypass on the read-only memory page protection.
+</p>
+<p>This "bug" still needs root access, as every APK run on Android is in a sandboxed environment. So, at best, this "punch through" effect is more of an undocumented behavior.
+</p>
+<p>
+<img src="../../img/blog/meme_android_code_exec_punch_effect.webp"/>
+</p>
+<p>
+Funny enough, this "bug" was later fixed, but caused some backlash as developers of legitimate applications using this quirk raised attention to their legit use cases, according to this archived mailing thread. I am not that active in the Linux community myself, but after some research, it seems like no one really cares; the quirk won't be fixed anytime soon, making it a fun little thing about Linux.
+</p>
+<h3>
+From Open to Write to Execute
+</h3>
+<p>
+The plan is simple, we <code>open()</code> on <code>/proc/PID/mem</code> using a rooted device so we can then call <code>write()</code> on a hot code path. We just need to <code>write()</code> a code cave that invokes dl<code>open()</code> exactly once.
+</p>
+<p>
+Spoiler alert, this exact idea of course already exists. On GitHub, user <a href="https://github.com/namazso">Namazso</a> already has <a href="https://github.com/namazso/linux_injector">a project named linux_injector</a> described as "A simple ptrace-less shared library injector for x64 Linux". However, thanks to Android not being fully POSIX-compliant, we can't just recompile it. Also, this one is for Intel x86_64, while most Android devices are using ARMv8 nowadays.
+</p>
+<h2>
+Creating the <code>android_injector</code>
+</h2>
+<p>
+Time to create my own ptrace-less injector for Android specifically. I will try to keep this as simple as possible and just call <code>dlopen</code> op my own <code>.so</code> file. No fancy manual mapping or anything, we can rly just copy any <code>.so</code> file (e.g., <code>libstealth.so</code>) into <code>/data/data/&lt;bundleId>/files/libstealth.so</code> and then <code>dlopen("/data/data/&lt;bundleId>/files/libstealth.so", RTLD_NOW)</code> to have it load and execute code.
+</p>
+<h3>
+The Codecave
+</h3>
+<p>
+Don't be scared of the machine code; it can't hurt you.
+</p>
+<p>
+<pre class="code_box">
+int shellcode[] = {
+    // Function prolog, to save registers
+    0xd10183ff, // SUB SP, SP, #0x60
+    0xa90007e0, // STP X0, X1, [SP]
+    0xa9010fe2, // STP X2, X3, [SP,#0x10]
+    0xa90217e4, // STP X4, X5, [SP,#0x20]
+    0xa90327e8, // STP X8, X9, [SP,#0x30]
+    0xa90443ef, // STP X15, X16, [SP,#0x40]
+    0xa9057bfd, // STP X29, X30, [SP,#0x50]
+    
+    // Set x0 point to "global variable"
+    0xaa0003e0, // ADRP x0, ptr                 ; 7 
+    0xaa0003e0, // ADD x0, x0, ptr%0x1000
+    
+    // Check if ("global variable" & 0x01) and jump our epilogue if true
+    0xf9400001, // LDR x1, [x0]
+    0xf240003f, // TST x1, #1 
+    0x54000121, // B.NE + 8? (skip next 8 instr) 
+    0xd2800021, // mov x1, #1
+    0xf9000001, // STR x1, [x0]
+    0xaa0003e0, // *ADRP    X0, lib_path@PAGE               ; 14
+    0xaa0003e0, // *ADD     X0, X0, lib_path@PAGEOFF
+    0xd2800041, // MOV X1, #2                               ; RTLD_NOW
+
+    // call dlopen("/path/to/file.so", 2)
+    0xaa0003e0, // *ADRP    X16, dlopen_ptr@PAGE            ; 17
+    0xaa0003e0, // *ADD     X16, X16, dlopen_ptr@PAGEOFF
+    0xaa0003e0, // *BLR     x16                             ; dlopen(str, RTLD_NOW)
+    
+    // Function epilogue (restore what we overwrote)
+    0xa9457bfd, // LDP X29, X30, [SP, #0x50]
+    0xa94443ef, // LDP X15, X16, [SP, #0x40]
+    0xa94327e8, // LDP X8, X9, [SP, #0x30]
+    0xa94217e4, // LDP X4, X5, [SP, #0x20]
+    0xa9410fe2, // LDP X2, X3, [SP, #0x10]
+    0xa94007e0, // LDP X0, X1, [SP]
+    0x910183ff, // ADD SP, SP, #0x60
+
+    // malloc prolog (execute the overwritten instructions)
+    0xaa0003e0, // MOV X0, X0
+    0xaa0003e0, // MOV X0, X0
+    0xaa0003e0, // MOV X0, X0 
+    
+    // then finally jump back to malloc+X to restore execution
+    0xaa0003e0, // MOV X0, X0                               ; 30
+    0xaa0003e0, // MOV X0, X0
+    0xaa0003e0, // MOV X0, X0 (BR for tailcall?)
+};
+</pre>
+</p>
+<p>
+This ARMv8 assembly shouldn't be too hard to understand, all it really does is set this "global variable", make sure the "global variable" doesn't have the least significant bit set (bit 1), so it can set the bit and call <code>dl<code>open()</code></code> to guarantee we only load one instance of the <code>.so</code> library file.
+</p>
+<p>
+So what is the "global variable"? I had to take any writable location in the memory — executed code must respect page permissions — so I took libc's "timezone" export and temporarily used the least significant bit to store whether or not the hook has already been executed.
+</p>
+<p>
+This is a must as the hook is inside libc's malloc function, which is executed so often that it will pretty much guarantee code execution after as little as 500ms of exposure.
+</p>
+<p>
+Fun fact, Android uses Bionic, which is one of the reasons why Android isn't fully POSIX-compliant. This means the dl<code>open()</code> is not located in libc.so but actually in libdl.so. 
+</p>
+<h3>
+The hooks themselves
+</h3>
+<p>
+For those who actually paid attention to the assembly, you may have noticed that I ain't really doing assembly and just use a hardcoded int[] to store instructions. You are correct, there is no need for a full dynamic assembly as I am good with static, hardcoded instructions. 
+</p>
+<p>
+Except for 3 types of instructions. There are some <code>MOV X0, X0</code> junk instructions all over the cave. They are there for a reason; they act as a placeholder. This sequence of 3 junk instructions will be replaced by a sequence of <code>ADRP</code>, <code>ADD</code>, and <code>BR</code> or <code>BLR</code>, respectively.
+</p>
+<p>
+No joke, I think it was faster for me to write my own <code>ADRP</code>,<code>ADD</code>,<code>BR</code>, and <code>BLR</code> assembler-ish logic than to link a random bloated library into my silly project. So here they are, my DIY assembler-ish functions to calculate jump addresses for ARMv8
+</p>
+<p>
+<pre class="code_box">
+uint32_t assembleADRP(uint64_t targetAddr, uint64_t pc, uint32_t regIndex)
+{
+    uint64_t pagePC = pc & ~0xFFF;
+    uint64_t pageTarget = targetAddr & ~0xFFF;
+    int64_t offset = (int64_t)pageTarget - (int64_t)pagePC;
+    uint32_t pageIndex = offset >> 12; // convert addr to 12bit page index
+ 
+    // Offset in 4KB units
+    int64_t imm = offset >> 12;
+
+    // Check if the offset fits in 21-bit signed value
+    if (imm &lt; -0x100000 || imm > 0xFFFFF) {
+        return -1; // out of range for ADRP
+    }
+
+    uint32_t immlo = pageIndex & 0x03; // 0:1 immlo
+    uint32_t immhi = pageIndex >> 2; // TODO fix missing last bit?
+    immhi = immhi & 0x7FFFF;
+    uint32_t instr = 0x90000000; // OP + OpCode 1??1 0000
+    instr |= (regIndex & 0x1F); // 0:4 set register
+    instr |= immlo &lt;&lt; 29; // 29:30
+    instr |= immhi &lt;&lt; 5; // 5:23
+    
+    return instr;
+}
+uint32_t assembleADD(uint32_t value, uint32_t regA, uint32_t regB)
+{
+    uint32_t instr = 0;
+    instr |= 0x91 &lt;&lt; 24; // 24:32 OpCode
+    instr |= regB &lt;&lt; 5; // 5:8
+    instr |= regA; // 0:3
+    instr |= (value & 0xFFFF) &lt;&lt; 10; // 10:22-ish
+    return instr;
+}
+uint32_t assembleBR(uint32_t regIndex)
+{
+    uint32_t instr = 0xD61F0000;
+    instr |= regIndex &lt;&lt; 5; // 8:5
+    return instr;
+}
+</pre>
+</p>
+<p>
+We can just ignore them, as they just set a bunch of bits in a DWORD; we can assume they work perfectly fine and start using them in our code cave like so:
+</p>
+<p>
+<pre class="code_box">
+// step 1.c - patch in condition (to only load once)
+uint64_t ptr0 = (uint64_t)syms.var;
+uint64_t off0 = 0x1000;
+off0 += ptr0 - (uint64_t)caveptr + (4*7);
+shellcode[7] = assembleADRP((uint64_t)syms.var, (uint64_t)caveptr + (4*7), 0); // ADRP x0, off
+shellcode[7+1] = assembleADD(ptr0%0x1000, 0, 0); // ADD x0, x0, off
+</pre>
+</p>
+<p>
+Now we can index the <code>shellcode[]</code> array to update these <code>MOV x0, x0</code> placeholders so that our shellcode is pointing to all the correct memory locations at runtime.
+</p>
+<p>
+Looking at how horrible this looks, I realise this may not be the best way... but I only have like 5 different locations to patch and once that works, I never ever have to touch those things again ;D.
+</p>
+<p>
+<pre class="code_box">
+// malloc prolog overwritten
+shellcode[27] = oginstr[0]; 
+shellcode[28] = oginstr[1];
+shellcode[29] = oginstr[2];
+</pre>
+</p>
+<p>
+Oh, and let's not forget to restore the instructions we overwrite when hooking into malloc, as we overwrite its first 3 instructions.
+</p>
+<h3>
+Writing Memory
+</h3>
+<p>
+Time to "holepunch" our local monstrosity into the remote target. 
+</p>
+<p>
+First, we write 3 instructions at the start of malloc so that malloc will instantly jump to our code cave.
+</p>
+<p>
+<pre class="code_box">
+hook_asm[0] = assembleADRP((uint64_t)caveptr, (uint64_t)caveptr2, 16); // ADRP x16, off?
+hook_asm[1] = assembleADD(targetptr%0x1000, 16, 16); // ADD x16, x16, off
+hook_asm[2] = assembleBR(16);
+if(mem_write(caveptr2, &hook_asm, sizeof(hook_asm)) == 0)
+{
+    LOG("Failed writing malloc hook!");
+    return -EACCES;
+}
+</pre>
+</p>
+<p>
+Next, we figure out where to inject the code cave. We cannot allocate a memory page into the remote target, so we gotta find a sneaky little place — one with the execute flag set — to write our payload into.
+</p>
+<p>
+<pre class="code_box">
+void* caveptr = (syms.p_dlopen-(((uint64_t)syms.p_dlopen)%0x1000)) + (0x1000 - sizeof(shellcode));
+</pre>
+</p>
+<p>
+We have to be creative once more as I decide to write this small enough payload at the end of the <code>.text</code> section of the <code>libc.so</code>. — It can actually be any other library in whatever <code>.text</code> section or other executable section. — We take this location as "page alignment" is a thing, leaving us with a big gap of unused executable 00 bytes, where we can write our small enough shellcode into.
+</p>
+<h3>
+Pulling out
+</h3>
+<p>
+With the writes done, we can have code execution any time now. Although I want to be sure it is actually executed, I want to wait a little and get a verification of whether the thing was actually executed or not.
+</p>
+<p>
+<pre class="code_box">
+while(mem_read(syms.var, &new_var, sizeof(new_var)) != 0 && loop_count &lt;= timeout_count) 
+{
+    loop_count++;
+    LOG("READING GOT: new: %x (old: %x)", new_var, old_var);
+    int is_injected = new_var & 1;
+    if(!is_injected)
+    {
+        usleep(50000);
+        continue;
+    }
+    LOG("HOOK malloc executed!");
+    break;
+}
+</pre>
+</p>
+<p>
+The above snippet will keep reading the target process memory to see if the "global variable" has its least significant bit set, and if true, it will break the loop and (not visible in snippet) restore the malloc hook and erase the codecave to leave no traces behind.
+</p>
+<p>
+This works fine, as the most likely thing to write the "global variable" in the next second will be our shellcode malloc hook whenever malloc is executed by the target.
+</p>
+<h3>
+Full source
+</h3>
+<p>
+For those brave enough, the whole source code is available on github.com/ferib/android_injector[https://github.com/ferib/android_injector/blob/master/src/main.c#L481]
+</p>
+<h2>
+Time to run!
+</h2>
+<p>
+Before we do so, we must quickly compile a libtest.so so we can actually verify the <code>.so</code> was injected and executed in the target process.
+</p>
+<h3>
+Creating <code>LibTest.so</code>
+</h3>
+<p>
+First, we create <code>LibTest.c</code>
+</p>
+<p>
+<pre class="code_box">
+#include &lt;android/log.h>
+
+__attribute__((constructor)) 
+void init_callback() {
+    __android_log_print(ANDROID_LOG_ERROR, "LIBSTEALTH", "#### LIBTEST HAS LOADED ####");
+    // NOTE: you may want to pthread another function; we must NOT stall the malloc thread!
+    //pthread_t thread;
+    //pthread_create(&thread, NULL, (void*)init_launch, NULL);
+}
+</pre>
+</p>
+<p>
+The trick here is to create a dynamic library with the <code>__attribute__((constructor))</code>  so that the compiler puts the ptr of <code>init_callback</code> into the <code>.init_array</code> of the ELF file. This is a must as we call <code>dlopen</code> on the file, the ELF Loader will execute these <code>.init_array</code> pointers and give us what we want... code execution 🤩
+</p>
+<h3>
+Compiling <code>LibTest.so</code>
+</h3>
+<p>
+This is trivial thanks to <code>ndk-build</code>. I used to have nightmares trying to cross-compile, especially when the target architectures differ.
+</p>
+<p>
+The full GitHub repo can also be found at github.com/ferib/libtest.so, containing all the stuff needed to configure <code>ndk-build</code>.
+</p>
+<h3>
+Injecting <code>LibTest.so</code>
+</h3>
+<p>
+This is the moment we've been waiting for! Before we proceed, we must place the <code>libTest.so</code> on the device in the expected location or the <code>libTest.so</code> may not even load due to the Android sandboxing. Let's copy the file to <code>/data/data/com.example.test/files/libTest.so</code> and run the <code>android_injector</code>
+</p>
+<p>
+Then off to the races!
+</p>
+<p>
+<pre class="code_box">
+> /data/tmp/android_inject.sh 1185 "/data/data/com.example.test/files/libTest.so"
+Injecting into 1185
+--------- beginning of main
+08-15 05:59:23.782  1335  1335 I LIBSTEALTH: #====================================#
+08-15 05:59:23.782  1335  1335 I LIBSTEALTH: #----- START android_injector ------ # [1804289383]
+08-15 05:59:23.782  1335  1335 I LIBSTEALTH: #====================================#
+08-15 05:59:23.782  1335  1335 I LIBSTEALTH: android_inject on 1185 with "/data/data/com.example.test/files/libTest.so"
+08-15 05:59:28.256  1335  1335 I LIBSTEALTH: found match for dlopen: 0x7c962e3014
+08-15 05:59:28.256  1335  1335 I LIBSTEALTH: Found dlopen: 0x7c962e3014
+08-15 05:59:28.256  1335  1335 I LIBSTEALTH: FOUND THE libdl.so at 0x7c962e2000 in '7c962e2000-7c962e3000 r--p 00000000 07:e8 39                             /apex/com.android.runtime/lib64/bionic/libdl.so
+08-15 05:59:28.256  1335  1335 I LIBSTEALTH: '
+08-15 05:59:28.306  1335  1335 I LIBSTEALTH: found match for timezone: 0x7ca552c128
+08-15 05:59:28.307  1335  1335 I LIBSTEALTH: found match for malloc: 0x7ca54a200c
+08-15 05:59:28.307  1335  1335 I LIBSTEALTH: found match for sprintf: 0x7ca5514cf8
+08-15 05:59:28.307  1335  1335 I LIBSTEALTH: syms.p_sprintf = 0x7ca5514cf8
+08-15 05:59:28.307  1335  1335 I LIBSTEALTH: FOUND THE libc++.so at 0x7ca5464000 in '7ca5464000-7ca54a1000 r--p 00000000 07:e8 38                             /apex/com.android.runtime/lib64/bionic/libc.so
+08-15 05:59:28.307  1335  1335 I LIBSTEALTH: '
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: libc: 0x7ca5464000, libdl: 0x7c962e2000
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: Found libc base at 0x7ca5464000
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: write str ptr at 0x7c962e3f48 size 49 ("/data/data/com.example.test/files/libTest.so")
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: dlopen ADRP at 0x7c962e3fc0
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: Shellcode injected at 0x7c962e3f7c, waiting for trigger...
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: caveptr2 0x7ca54a200c
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: offset:     f0e41f70
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: HOOK: malloc (test) injected at 0x7ca54a200c
+08-15 05:59:28.346  1335  1335 I LIBSTEALTH: READING GOT: new: 1110000 (old: fffff1f0)
+08-15 05:59:28.350  1185  1469 E LIBSTEALTH: #### LIBTEST HAS LOADED ####
+08-15 05:59:28.351  1185  1860 E LIBSTEALTH: WHO WANTS TO DRINK FROM THE FIREHOSE????
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: 0x646ed25947a8dd83 OR 0x794fc40000
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: Hooking send 0x7ca54c3ae0 7ca54c3ae0 to 77d25dbd40
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: sendto 7ca54b5538
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: connect 7ca54b54e4
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: HOOK test_A at 0x795050a800 -> 0x77d25dc5e0
+08-15 05:59:28.364  1185  1860 E LIBSTEALTH: HOOK status 0
+08-15 05:59:28.396  1335  1335 I LIBSTEALTH: READING GOT: new: 1 (old: fffff1f0)
+08-15 05:59:28.396  1335  1335 I LIBSTEALTH: HOOK malloc executed!
+08-15 05:59:28.396  1335  1335 I LIBSTEALTH: Removing hook and codecave!1!!
+</pre>
+</p>
+<p>
+That's a lot of prints, yet none of them are useful. Should clean those up, but they actually come in handy when stuff breaks.
+</p>
+<p>
+Anyway, we injected into pid 1185, as we can see the command on the first line. We can see the pid of the injector is 1335 by looking at this line <code>1335  1335 I LIBSTEALTH: android_inject on 1185 with "/data/data/com.example.test/files/libTest.so"</code>.
+</p>
+<p>
+Now we can confirm our <code>libTest.so</code> was executed inside the remote process as process 1185, our target, emitted our test string in this line <code>1185  1469 E LIBSTEALTH: #### LIBTEST HAS LOADED ####</code>.
+</p>
+<h3>
+Ta da 🎉
+</h3>
+<p>
+There it is, <code>libTest.so</code> got injected, and my target did not crash! But does this really mean it's undetected? Just because no one is looking doesn't mean it's fully undetected.
+</p>
+<h2>
+Re-evaluating its footprint
+</h2>
+<p>
+First, the most obvious requirement is that we need access to the target process memory. I choose to do so with root access and <code>open()</code> on <code>/proc/PID/mem</code>, but if I'm not mistaken, we can also take a different route with virtual memory spaces.
+</p>
+<p>
+Second, we actually do leave a footprint somewhere inside the <code>libc.so</code> as we hook the malloc. The malloc has its first 3 instructions overwritten, and then libc.so has the code cave injected somewhere at the end of the <code>.text</code> section. Both are only exposed for a brief second, depending on how much time it takes for malloc to execute. One syscall later and all the traces left behind are gone... unless there may be a dirty bit left behind 🤔
+</p>
+<p>
+After the injection is done, all memory is restored, all fd's are closed, but two things remain. The <code>/data/data/&lt;bundleId>/files/</code> still contain the <code>libTest.so</code>, which isn't hard to remove. There is also a copy that exists in memory, which is heavily exposed in the <code>/proc/PID/maps</code>.
+</p>
+<h2>
+Conclusion
+</h2>
+<p>
+We looked into how we can inject dynamic executables into a remote Android process while keeping a very low footprint. We did this using a lesser-known techniques that avoid the usage of ptrace so we can get code execution inside self-protected Android processes.
+</p>
+<p>
+Despite leaving a small footprint behind during the injection process, we concluded that our <code>libTest.so</code> library is left naked in memory and can easily be spotted in the <code>/proc/PID/maps</code>. However, deciding which <code>.so</code> is side-loaded and which one came from the process itself seems like a difficult detection techniques, one which I have yet to see in a public protected Android application ;).
+</p>
+                    </article>
+				</div>
+			</div>
+		</div>
+	</body>
+</html>
