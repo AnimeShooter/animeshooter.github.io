@@ -5,9 +5,9 @@
 		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/dark.css" media="all" />
 		<link rel="stylesheet" type="text/css" href="https://ferib.dev/css/code_highligt.css" media="all" />
         
-        <meta property="og:title" content="Bitcoin atomic swaps in World of Warcraft"/>
+        <meta property="og:title" content=".So Long, Frida — We Inject It Raw"/>
         <meta property="og:type" content="profile"/>
-        <meta property="og:description" content="The idea itself is very simple. Thanks to Bitcoin being a cryptocurrency, we can utilize a clever cryptographic mechanism to convert in-game items into actual Bitcoins. Once Alice has created such an in-game item, she can trade the in-game item with player Bob so he can then redeem the actual Bitcoins."/>
+        <meta property="og:description" content="I launch my Android app, but it instantly crashes when I attach Frida. Similar behavior is observed when a debugger is attached. Oh no, the Android APK has runtime protection, and I'm not ready to re-compile Frida from source, nor do I feel like diving down the debugger/ptrace rabbit hole."/>
         <meta property="og:url" content="https://ferib.dev/"/>
         <meta property="og:image" content="https://ferib.dev/logo.png"/>
         <meta property="og:image:type" content="image/png"/>
@@ -35,10 +35,10 @@
 User-mode code execution! This can't be too hard, right?
 </p>
 <p>
-Unfortunately, Android (nor any other GNU/Unix) doesn't have what Windows NT has... CreateRemoteThread. 
+Unfortunately, Android (nor any other GNU/Unix) doesn't have what Windows NT has... <code>CreateRemoteThread</code>. 
 </p>
 <p>
-This CreateRemoteThread API is super handy as it allows for one process to <b>create a new thread inside another running process.</b> That combined with another API such as ReadProcessMemory and WriteProcessMemory — which, as the name suggest, allow to read/write memory from another running process. — comes in really handy to get code execution. We don't even need "administrator" (aka root) if the target process isn't running as "administrator" itself.
+This <code>CreateRemoteThread</code> API is super handy as it allows for one process to <b>create a new thread inside another running process.</b> That combined with another API such as ReadProcessMemory and WriteProcessMemory — which, as the name suggest, allow to read/write memory from another running process. — comes in really handy to get code execution. We don't even need "administrator" (aka root) if the target process isn't running as "administrator" itself.
 </p>
 <p>
 Back to Android, we lack such API's, but we can build creative workarounds.
@@ -56,7 +56,7 @@ Unfortunately, both are easily detected. A process may ptrace itself to prevent 
 Time to punch some holes
 </h3>
 <p>
-A long time ago, there was a "bug" in Linux that allowed a process to <code>write()</code> to any offset in <code>/proc/PID/mem</code> as long as <code>open()</code> returned a valid handle. Or in other words, <code>write()</code> does not respect the memory map permissions — seen in /proc/PID/maps — as it just blindly accepts the write requesting. Therefore, making it a good bypass on the read-only memory page protection.
+A long time ago, there was a "bug" in Linux that allowed a process to <code>write()</code> to any offset in <code>/proc/PID/mem</code> as long as <code>open()</code> returned a valid handle. Or in other words, <code>write()</code> does not respect the memory map permissions — seen in <code>/proc/PID/maps</code> — as it just blindly accepts the write requesting. Therefore, making it a good bypass on the read-only memory page protection.
 </p>
 <p>This "bug" still needs root access, as every APK run on Android is in a sandboxed environment. So, at best, this "punch through" effect is more of an undocumented behavior.
 </p>
