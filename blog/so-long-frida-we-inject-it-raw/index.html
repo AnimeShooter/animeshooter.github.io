@@ -149,7 +149,7 @@ So what is the "global variable"? I had to take any writable location in the mem
 This is a must as the hook is inside libc's malloc function, which is executed so often that it will pretty much guarantee code execution after as little as 500ms of exposure.
 </p>
 <p>
-Fun fact, Android uses Bionic, which is one of the reasons why Android isn't fully POSIX-compliant. This means the dl<code>open()</code> is not located in libc.so but actually in libdl.so. 
+Fun fact, Android uses Bionic, which is one of the reasons why Android isn't fully POSIX-compliant. This means the dl<code>open()</code> is not located in <code>libc.so</code> but actually in <code>libdl.so</code>. 
 </p>
 <h3>
 The hooks themselves
@@ -308,7 +308,7 @@ For those brave enough, the whole source code is available on <a href="https://g
 Time to run!
 </h2>
 <p>
-Before we do so, we must quickly compile a libtest.so so we can actually verify the <code>.so</code> was injected and executed in the target process.
+Before we do so, we must quickly compile a <code>libtest.so</code> so we can actually verify the <code>.so</code> was injected and executed in the target process.
 </p>
 <h3>
 Creating <code>LibTest.so</code>
@@ -330,7 +330,7 @@ void init_callback() {
 </pre>
 </p>
 <p>
-The trick here is to create a dynamic library with the <code>__attribute__((constructor))</code>  so that the compiler puts the ptr of <code>init_callback</code> into the <code>.init_array</code> of the ELF file. This is a must as we call <code>dlopen</code> on the file, the ELF Loader will execute these <code>.init_array</code> pointers and give us what we want... code execution 🤩
+The trick here is to create a dynamic library with the <code>__attribute__((constructor))</code>  so that the compiler puts the ptr of <code>init_callback</code> into the <code>.init_array</code> of the ELF file. This is a <b>must</b> as we call <code>dlopen</code> on the file, the ELF Loader will execute these <code>.init_array</code> pointers and give us what we want... <b>code execution</b> 🤩
 </p>
 <h3>
 Compiling <code>LibTest.so</code>
@@ -345,7 +345,7 @@ The full GitHub repo can also be found at github.com/ferib/libtest.so, containin
 Injecting <code>LibTest.so</code>
 </h3>
 <p>
-This is the moment we've been waiting for! Before we proceed, we must place the <code>libTest.so</code> on the device in the expected location or the <code>libTest.so</code> may not even load due to the Android sandboxing. Let's copy the file to <code>/data/data/com.example.test/files/libTest.so</code> and run the <code>android_injector</code>
+This is the moment we've been waiting for! Before we proceed, we <b>must</b> place the <code>libTest.so</code> on the device in the expected location or the <code>libTest.so</code> may not even load due to the Android sandboxing. Let's copy the file to <code>/data/data/com.example.test/files/libTest.so</code> and run the <code>android_injector</code>
 </p>
 <p>
 Then off to the races!
