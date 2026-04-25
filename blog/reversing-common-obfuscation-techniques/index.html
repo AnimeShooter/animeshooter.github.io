@@ -42,7 +42,7 @@
 							One of the first things I'd like to figure out about a program when I'm reversing is where it invokes the Operating System. In our case, we will focus on Windows 10 as most video games are only working on a Windows-based operating system. Anyway, for those who didn't know yet, Windows provides a bunch of important Dynamic Linked Library (DLL) files that almost every Windows executable uses. These DLLs contain functions that can be 'imported' by Windows executables, allowing them to load and execute the function of a given DLL. 
 							</p>
 							<p>
-							<img src="../img/blog/ow_import_table.png" width="934" height="331" alt="Import tables IDA" ></img>
+							<img src="../img/ow_import_table.png" width="934" height="331" alt="Import tables IDA" ></img>
 							</p>
 							<h3>Why are they important?</h3>
 							<p>
@@ -66,7 +66,7 @@
 							We may now want to take a deeper look and also check which ws2_32.dll functions are used. If we take the Socket function and find out where it's called we can check its arguments, allowing us to easily figure out which protocol and type are used after we <u><a href="https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-socket">google the function name</a></u>.
 							</p>
 							<p>
-							<img src="../img/blog/ow_socket_ida.png" width="532" height="366" alt="Socket xref in IDA" ></img>
+							<img src="../img/ow_socket_ida.png" width="532" height="366" alt="Socket xref in IDA" ></img>
 							</p>
 							<p>
 							<i>NOTE: IDA has automatically added comments to the disassembly.</i>
@@ -83,7 +83,7 @@
 							For this example, we are looking at a sample that is using a trampoline-ish obfuscation, as you can see below:
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr.png" width="624" height="286" alt="IAT Obfuscated Pointer" ></img>
+							<img src="../img/ow_iat_ptr.png" width="624" height="286" alt="IAT Obfuscated Pointer" ></img>
 							</p>
 							<p>
 							The address below, <code>0x7FF7D7F9B000</code> which references our function <code>0x19AA1040FE1</code> is looking completely different. You may think this is junk code, but have a good look and you will find out it's not.
@@ -92,28 +92,28 @@
 							Take a good look at the first two instructions, starting with <code>mov rax, FFFF8000056C10A1</code> followed by <code>jmp 19AA1040738</code>, except everything after that is complete junk. Anyway, let's take that jump and see where it takes us to:
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr_2.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 1" ></img>
+							<img src="../img/ow_iat_ptr_2.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 1" ></img>
 							</p>
 							<p>
 							Look at that, 4 more valid instructions, this time it's an XOR and 2 ADDs followed by yet another jump. Let's repeat this process a few more times...
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr_3.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 2" ></img>
+							<img src="../img/ow_iat_ptr_3.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 2" ></img>
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr_4.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 3" ></img>
+							<img src="../img/ow_iat_ptr_4.png" width="624" height="286" alt="IAT Obfuscated Pointer jmp 3" ></img>
 							</p>
 							<p>
 							Finally, we reached a <code>jmp rax</code> instruction! In case you didn't notice, all the XOR, SUB, and ADD instructions have been performed on that Rax register, meaning that this may contain the actual pointer of our imported function. Let's do the math and find out.
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr_calc.png" width="413" height="309" alt="Calcualting pointer by hand" ></img>
+							<img src="../img/ow_iat_ptr_calc.png" width="413" height="309" alt="Calcualting pointer by hand" ></img>
 							</p>
 							<p>
 							And indeed, after doing the math we obtain the pointer to <code>ADVAPI32.RegOpenKeyExA</code>, cheers!
 							</p>
 							<p>
-							<img src="../img/blog/ow_iat_ptr_5.png" width="624" height="286" alt="IAT De-Obfuscated Pointer" ></img>
+							<img src="../img/ow_iat_ptr_5.png" width="624" height="286" alt="IAT De-Obfuscated Pointer" ></img>
 							</p>
 							<p>
 							Now, all we have to do is repeat this a few hundred times and we have completely deobfuscated the IAT import tables.
@@ -136,7 +136,7 @@
 							Okay if you're not quite following then let me show you some visuals to help you understand. The first image shows <code>jbe</code> which lands inside another instruction.
 							</p>
 							<p>
-							<img class="zoom" style="margin:auto; display:block;" src="../img/blog/ow_branch_obf.png" width="505" height="399" alt="Obfuscated JMP" ></img>
+							<img class="zoom" style="margin:auto; display:block;" src="../img/ow_branch_obf.png" width="505" height="399" alt="Obfuscated JMP" ></img>
 							</p>
 							<p>
 							<i>NOTE: The red marked bytes are junk code.</i>
@@ -145,7 +145,7 @@
 							Now take a deep look at the second image below, all I did here was NOP the two bytes of the last instruction so that my IDA reveals the hidden instruction underneath the <code>and [rdx+24448B48h], bh</code> instruction.
 							</p>
 							<p>
-							<img class="zoom" style="margin:auto; display:block;" src="../img/blog/ow_branch_de-obf.png" width="548" height="480" alt="De-Obfuscated JMP" ></img>
+							<img class="zoom" style="margin:auto; display:block;" src="../img/ow_branch_de-obf.png" width="548" height="480" alt="De-Obfuscated JMP" ></img>
 							</p>
 							<p>
 							We may also patch the conditional jump with an unconditional one to make sure IDA won't fall for it again.
@@ -154,7 +154,7 @@
 							Before we continue I would like to show one last example as the previous one was a very basic one. Things become a lot more complicated when you start chaining these obfuscated jumps into each other, as you can see in the image below.
 							</p>
 							<p>
-							<img class="zoom" style="margin:auto; display:block;" src="../img/blog/ow_big_obfuscated.png" width="380" height="539" alt="Big obfuscated junk" ></img>
+							<img class="zoom" style="margin:auto; display:block;" src="../img/ow_big_obfuscated.png" width="380" height="539" alt="Big obfuscated junk" ></img>
 							</p>
 							<p>
 							This image only shows the chaos it creates in the control flow, but just imagine how hard my CPU was suffering while IDA did its very best to create this graph based on junk instructions.
@@ -163,7 +163,7 @@
 							Now you may wonder what the deobfuscated functions look like? I'm glad you asked!
 							</p>
 							<p>
-							<img class="zoom" style="margin:auto; display:block;" src="../img/blog/ow_big_deobfuscated_result.png" width="883" height="721" alt="Big deobfuscated junk" ></img>
+							<img class="zoom" style="margin:auto; display:block;" src="../img/ow_big_deobfuscated_result.png" width="883" height="721" alt="Big deobfuscated junk" ></img>
 							</p>
 							<p>
 							See that little blue arrow I drew on the left side? that shows what the right part is zoomed in on. Now have a look at the right side and you will see seven deobfuscated jumps in just that small part of the function. Just imagine how much time one would need to deobfuscate this manually or semi-automated (IDA script to NOP jmp). Doing that one by hand using an IDA script took me already 40 minutes... and that's just for one damn function. Imagine how many other functions I would need to do to find what I was actually looking for!
